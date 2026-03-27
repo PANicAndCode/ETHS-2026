@@ -1,4 +1,6 @@
 const COOLDOWN_MINUTES = 10;
+const FINAL_EGG_WAIT_MS = 2 * 60 * 1000;
+const FINAL_WAIT_MARKER_PREFIX = "__FINAL_WAIT_STARTED__:";
 const STORAGE_PREFIX = "easter-hunt-supabase-progress-v3";
 const ADMIN_PASSCODE = "bunnyboss";
 
@@ -112,6 +114,36 @@ function isOnFinalClue(targetState, team = teamKey){
   return targetState.progressIndex === Math.max(0, teamTotal(team) - 1);
 }
 
+function getFinalWaitStartedAt(targetState){
+  const tokens = Array.isArray(targetState?.scannedTokens) ? targetState.scannedTokens : [];
+  const marker = tokens.find(token => typeof token === "string" && token.startsWith(FINAL_WAIT_MARKER_PREFIX));
+  return marker ? Number(marker.slice(FINAL_WAIT_MARKER_PREFIX.length)) || 0 : 0;
+}
+
+function ensureFinalWaitMarker(targetState){
+  if (!targetState) return 0;
+  targetState.scannedTokens = Array.isArray(targetState.scannedTokens) ? targetState.scannedTokens : [];
+  let startedAt = getFinalWaitStartedAt(targetState);
+  if (!startedAt){
+    startedAt = Date.now();
+    targetState.scannedTokens = targetState.scannedTokens.filter(token => !(typeof token === "string" && token.startsWith(FINAL_WAIT_MARKER_PREFIX)));
+    targetState.scannedTokens.push(`${FINAL_WAIT_MARKER_PREFIX}${startedAt}`);
+  }
+  return startedAt;
+}
+
+function finalEggWaitRemaining(targetState){
+  if (!targetState || targetState.finished || !isOnFinalClue(targetState)) return 0;
+  const startedAt = ensureFinalWaitMarker(targetState);
+  return Math.max(0, startedAt + FINAL_EGG_WAIT_MS - now);
+}
+
+function canClaimFinalEgg(targetState){
+  if (!targetState || targetState.finished) return false;
+  if (isReadyForVictory(targetState, teamKey)) return true;
+  return isOnFinalClue(targetState, teamKey) && finalEggWaitRemaining(targetState) <= 0;
+}
+
 function ordinalWord(place){
   return ["zeroth", "first", "second", "third", "fourth", "fifth"][place] || `${place}th`;
 }
@@ -158,7 +190,7 @@ function finalEggInfo(){
 }
 
 function finalEggReadyMessage(){
-  return "That was the right QR code. You finished the last QR step. If your team has the final egg, tap I found the final egg! to lock in your placement, see your prize, and reveal where the final egg was hidden.";
+  return "Help Ma pick some apples is now your final clue. Once that clue appears, wait 2 minutes before tapping I found the final egg! to lock in your placement, see your prize, and reveal where the final egg was hidden.";
 }
 
 function setFeedback(msg){ if (el("feedbackBox")) el("feedbackBox").textContent = msg; }
@@ -480,7 +512,10 @@ function renderChores(){
     if (idx < state.progressIndex) {
       div.innerHTML = `<strong>${clue.title}</strong>${clue.subtitle ? `<div class="muted">${clue.subtitle}</div>` : ""}<div class="muted">Found at: <strong>${clue.location}</strong></div>`;
     } else if (idx === state.progressIndex) {
-      div.innerHTML = `<strong>${clue.title}</strong>${clue.subtitle ? `<div class="muted">${clue.subtitle}</div>` : ""}<div class="muted">Find the egg, then scan its QR code to unlock the next chore.</div>`;
+      const activeCopy = isOnFinalClue(state, teamKey)
+        ? "Find the final egg, then wait 2 minutes before tapping I found the final egg!"
+        : "Find the egg, then scan its QR code to unlock the next chore.";
+      div.innerHTML = `<strong>${clue.title}</strong>${clue.subtitle ? `<div class="muted">${clue.subtitle}</div>` : ""}<div class="muted">${activeCopy}</div>`;
     } else {
       div.innerHTML = `<strong>Locked chore</strong><div class="muted">Scan the correct egg to unlock this item.</div>`;
     }
@@ -586,6 +621,11 @@ function applyProgressAdvance(team, targetState, scannedValue){
   targetState.finished = false;
   targetState.lastUpdatedAt = Date.now();
 
+  if (isOnFinalClue(targetState, team)) {
+    ensureFinalWaitMarker(targetState);
+    return { status: "ready-final-egg", message: finalEggReadyMessage() };
+  }
+
   if (isReadyForVictory(targetState, team)) {
     return { status: "ready-final-egg", message: finalEggReadyMessage() };
   }
@@ -603,11 +643,11 @@ async function unlockToken(token, options = {}){
 
   const expected = TOKENS[teamKey][state.progressIndex];
   if (!expected){
-    const message = isReadyForVictory(state, teamKey)
+    const message = canClaimFinalEgg(state)
       ? finalEggReadyMessage()
       : "This team has already finished every clue.";
     if (!quiet) setFeedback(message);
-    return { status: isReadyForVictory(state, teamKey) ? "ready-final-egg" : "finished", message };
+    return { status: canClaimFinalEgg(state) ? "ready-final-egg" : "finished", message };
   }
 
   if ((token || "").trim() !== expected){
@@ -639,11 +679,11 @@ function renderFinalEggCard(){
     return;
   }
 
-  if (isReadyForVictory(state, teamKey)){
+  if (canClaimFinalEgg(state)){
     card.classList.remove("hidden");
     badge.textContent = "🥚 Final egg ready";
     title.textContent = "Think you found the final egg?";
-    copy.textContent = "Tap I found the final egg! only when your team really has it. That button locks in your placement, tells you how much money you won, and then reveals where the final egg was hidden.";
+    copy.textContent = "Your 2-minute wait is over. Tap I found the final egg! only when your team really has it. That button locks in your placement, tells you how much money you won, and then reveals where the final egg was hidden.";
     claimBtn.classList.remove("hidden");
     viewBtn.classList.add("hidden");
     return;
@@ -662,10 +702,11 @@ function renderFinalEggCard(){
   }
 
   if (isOnFinalClue(state, teamKey)){
+    const remaining = finalEggWaitRemaining(state);
     card.classList.remove("hidden");
-    badge.textContent = "🥚 Final egg button unlocked";
+    badge.textContent = "⏳ Final egg countdown";
     title.textContent = "This button is for the final egg.";
-    copy.textContent = "Once your team really finds the final egg after Help Ma pick some apples, tap I found the final egg! It will lock in your placement, show how much money you won, and reveal where the final egg was hidden. Do not tap it early.";
+    copy.textContent = `After Help Ma pick some apples appears, wait 2 minutes before using I found the final egg! Time left: ${fmtCountdown(remaining)}. Once the wait is over and your team really has the final egg, tap the button to lock in your placement, show how much money you won, and reveal where the final egg was hidden.`;
     claimBtn.classList.remove("hidden");
     viewBtn.classList.add("hidden");
     return;
@@ -699,15 +740,20 @@ async function claimVictory(){
     showVictoryOverlay();
     return;
   }
-  if (!isReadyForVictory(state, teamKey)){
+  if (!canClaimFinalEgg(state)){
     if (isOnFinalClue(state, teamKey)) {
-      setFeedback("This button is for after your team really has the final egg. Finish Help Ma pick some apples, then tap it to lock in your placement.");
+      setFeedback(`Please wait ${fmtCountdown(finalEggWaitRemaining(state))} before claiming the final egg.`);
     } else {
       setFeedback("Find the final egg before you claim it.");
     }
     return;
   }
 
+  if (isOnFinalClue(state, teamKey)) {
+    const finalClueId = TEAMS[teamKey].sequence[state.progressIndex];
+    if (!state.completed.includes(finalClueId)) state.completed.push(finalClueId);
+    state.progressIndex = teamTotal(teamKey);
+  }
   state.finished = true;
   state.lastUpdatedAt = Date.now();
   await renderAll();
@@ -1263,7 +1309,7 @@ async function adminGrantNext(){
     const place = finishPlacementForTeam(team) || finishedPlacementRows().length;
     el("adminPanelFeedback").textContent = `${TEAMS[team].label} finished the hunt in ${placementLabel(place)} and won ${placementPrizeText(place)}.`;
   } else if (result.status === "ready-final-egg") {
-    el("adminPanelFeedback").textContent = `Granted ${TEAMS[team].label} the final egg step. The location stays hidden until they tap I found the final egg!`;
+    el("adminPanelFeedback").textContent = `Granted ${TEAMS[team].label} immediate access to claim the final egg. The location stays hidden until they tap I found the final egg!`;
   } else {
     el("adminPanelFeedback").textContent = `Granted ${TEAMS[team].label} past ${clueName} (step ${currentStep}).`;
   }
@@ -1420,6 +1466,7 @@ window.addEventListener("beforeunload", stopCamera);
     if (state){
       renderTop();
       renderHint();
+      renderFinalEggCard();
     }
   }, 1000);
 })();
