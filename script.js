@@ -1,5 +1,5 @@
 const COOLDOWN_MINUTES = 10;
-const FINAL_EGG_WAIT_MS = 2 * 60 * 1000;
+const FINAL_EGG_WAIT_MS = 1 * 60 * 1000;
 const FINAL_WAIT_MARKER_PREFIX = "__FINAL_WAIT_STARTED__:";
 const STORAGE_PREFIX = "easter-hunt-supabase-progress-v3";
 const ADMIN_PASSCODE = "bunnyboss";
@@ -190,7 +190,7 @@ function finalEggInfo(){
 }
 
 function finalEggReadyMessage(){
-  return "Help Ma pick some apples is now your final clue. Once that clue appears, wait 2 minutes before tapping I found the final egg! to lock in your placement, see your prize, and reveal where the final egg was hidden.";
+  return "Help Ma pick some apples is now your final clue. When your team really has the final egg, tap I found the final egg! to lock in your placement, see your prize, and reveal where the final egg was hidden.";
 }
 
 function setFeedback(msg){ if (el("feedbackBox")) el("feedbackBox").textContent = msg; }
@@ -683,7 +683,7 @@ function renderFinalEggCard(){
     card.classList.remove("hidden");
     badge.textContent = "🥚 Final egg ready";
     title.textContent = "Think you found the final egg?";
-    copy.textContent = "Your 2-minute wait is over. Tap I found the final egg! only when your team really has it. That button locks in your placement, tells you how much money you won, and then reveals where the final egg was hidden.";
+    copy.textContent = "Tap I found the final egg! only when your team really has it. That button locks in your placement, tells you how much money you won, and then reveals where the final egg was hidden.";
     claimBtn.classList.remove("hidden");
     viewBtn.classList.add("hidden");
     return;
@@ -704,9 +704,9 @@ function renderFinalEggCard(){
   if (isOnFinalClue(state, teamKey)){
     const remaining = finalEggWaitRemaining(state);
     card.classList.remove("hidden");
-    badge.textContent = "⏳ Final egg countdown";
+    badge.textContent = "🥚 Final egg";
     title.textContent = "This button is for the final egg.";
-    copy.textContent = `After Help Ma pick some apples appears, wait 2 minutes before using I found the final egg! Time left: ${fmtCountdown(remaining)}. Once the wait is over and your team really has the final egg, tap the button to lock in your placement, show how much money you won, and reveal where the final egg was hidden.`;
+    copy.textContent = "Use this only after your team really has the final egg. Tapping it locks in your placement, shows how much money you won, and reveals where the final egg was hidden.";
     claimBtn.classList.remove("hidden");
     viewBtn.classList.add("hidden");
     return;
@@ -742,7 +742,7 @@ async function claimVictory(){
   }
   if (!canClaimFinalEgg(state)){
     if (isOnFinalClue(state, teamKey)) {
-      setFeedback(`Please wait ${fmtCountdown(finalEggWaitRemaining(state))} before claiming the final egg.`);
+      setFeedback("Use that button only after your team really has the final egg.");
     } else {
       setFeedback("Find the final egg before you claim it.");
     }
