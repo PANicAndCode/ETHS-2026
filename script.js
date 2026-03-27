@@ -76,8 +76,9 @@ function updateAdminMapButton(){
 
 function applyMapVisibility(){
   const enabled = isMapEnabled();
-  const mapCard = el("mapCard");
-  const grid = el("mapPageGrid");
+  const mapPage = el("mapPage");
+  const mapCard = mapPage ? mapPage.querySelector("#mapCard") : null;
+  const grid = mapPage ? mapPage.querySelector("#mapPageGrid") : null;
   const navBtn = document.querySelector('.menuBtn[data-page="mapPage"]');
   if (mapCard) mapCard.classList.toggle("hidden", !enabled);
   if (grid) grid.classList.toggle("mapPageLeaderboardOnly", !enabled);
