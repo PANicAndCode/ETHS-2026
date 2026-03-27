@@ -92,9 +92,9 @@ const CLUES = {
     }
   },
   "11": {
-    "title": "FINAL CLUE: Go fix the dock!",
+    "title": "FINAL EGG: Find the last egg!",
     "location": "Pond / dock",
-    "hint": "Go to the pond and look around.",
+    "hint": "Go to the pond and look around the dock for the final egg.",
     "zone": {
       "x": 74,
       "y": 88
@@ -115,8 +115,7 @@ const TEAMS = {
       7,
       8,
       9,
-      10,
-      11
+      10
     ]
   },
   "Team2": {
@@ -131,8 +130,7 @@ const TEAMS = {
       6,
       4,
       10,
-      7,
-      11
+      7
     ]
   },
   "Team3": {
@@ -147,8 +145,7 @@ const TEAMS = {
       5,
       8,
       3,
-      6,
-      11
+      6
     ]
   },
   "Team4": {
@@ -163,8 +160,7 @@ const TEAMS = {
       10,
       2,
       8,
-      5,
-      11
+      5
     ]
   },
   "Team5": {
@@ -179,8 +175,7 @@ const TEAMS = {
       4,
       1,
       9,
-      3,
-      11
+      3
     ]
   }
 };
@@ -196,8 +191,7 @@ const TOKENS = {
     "RNFL5UA5J7",
     "CKGRJ7EJU9",
     "6M4P229JQ8",
-    "FVW79P4P7C",
-    "LFZ55QDYEW"
+    "FVW79P4P7C"
   ],
   "Team2": [
     "YCUPHGW8U7",
@@ -209,8 +203,7 @@ const TOKENS = {
     "H2BM5JQCCG",
     "5G2GN9RYH8",
     "PTCC83LKS6",
-    "BLHMHC557N",
-    "F7ZZ7GG3R7"
+    "BLHMHC557N"
   ],
   "Team3": [
     "8ME7SM5M5U",
@@ -222,8 +215,7 @@ const TOKENS = {
     "STJ36X5CTC",
     "QRK3ZHMTH5",
     "4JWZVATWDQ",
-    "W6WT2TZT9P",
-    "BV6VWXHV6G"
+    "W6WT2TZT9P"
   ],
   "Team4": [
     "Y4NF54DWFY",
@@ -235,8 +227,7 @@ const TOKENS = {
     "HV53ZXMYQC",
     "NAX6324ZS5",
     "YX866XPRLK",
-    "RAPSSLKLGT",
-    "P7RJ959MZH"
+    "RAPSSLKLGT"
   ],
   "Team5": [
     "6GWL8R5SVH",
@@ -248,7 +239,6 @@ const TOKENS = {
     "9QGJ5P6WKC",
     "ZZ9EKSSCMA",
     "8YYUXRV6CU",
-    "7R22QNUJKX",
-    "7RG7G9SCCX"
+    "7R22QNUJKX"
   ]
 };

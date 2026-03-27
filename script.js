@@ -131,6 +131,32 @@ function finishPlacementForTeam(team = teamKey){
   return idx >= 0 ? idx + 1 : null;
 }
 
+function placementPrize(place){
+  if (place === 1) return 40;
+  if (place === 2) return 20;
+  if (place === 3) return 10;
+  if (place === 4 || place === 5) return 6;
+  return 0;
+}
+
+function placementPrizeText(place){
+  const amount = placementPrize(place);
+  return `$${amount}`;
+}
+
+function finalEggInfo(){
+  return CLUES[11] || {
+    title: "FINAL EGG: Find the last egg!",
+    location: "Final egg location",
+    hint: "Find the final egg."
+  };
+}
+
+function finalEggReadyMessage(){
+  const finalEgg = finalEggInfo();
+  return `That was the right QR code. Final egg clue unlocked: head to ${finalEgg.location}. ${finalEgg.hint} When your team has the final egg, tap I found the final egg!`;
+}
+
 function setFeedback(msg){ if (el("feedbackBox")) el("feedbackBox").textContent = msg; }
 function setScanMessage(msg){ if (el("scanMessage")) el("scanMessage").textContent = msg; }
 function setScanStatus(status, msg){
@@ -506,7 +532,7 @@ function renderBoard(){
         ${trophy ? `<span class="${trophy.className}" aria-label="${trophy.label}">${trophy.icon}</span>` : ""}
         <div class="leaderText">
           <strong>${place}. ${row.teamName}</strong>
-          <div class="muted">${row.finished ? `${placementLabel(place)} • Finished` : (row.found >= teamTotal(row.key) ? "Final egg ready" : "In progress")}</div>
+          <div class="muted">${row.finished ? `${placementLabel(place)} • Won ${placementPrizeText(place)}` : (row.found >= teamTotal(row.key) ? "Final egg ready" : "In progress")}</div>
         </div>
       </div>
       <div class="leaderRight">
@@ -542,7 +568,7 @@ function applyProgressAdvance(team, targetState, scannedValue){
   const expected = TOKENS[team]?.[targetState.progressIndex];
   if (!expected){
     if (isReadyForVictory(targetState, team)) {
-      return { status: "ready-final-egg", message: "You found every clue. Tap I found the final egg! to lock in your placement." };
+      return { status: "ready-final-egg", message: finalEggReadyMessage() };
     }
     return { status: "finished", message: "This team has already finished every clue." };
   }
@@ -557,7 +583,7 @@ function applyProgressAdvance(team, targetState, scannedValue){
   targetState.lastUpdatedAt = Date.now();
 
   if (isReadyForVictory(targetState, team)) {
-    return { status: "ready-final-egg", message: "That was the right QR code. You found the last clue. Tap I found the final egg! when your team gets there." };
+    return { status: "ready-final-egg", message: finalEggReadyMessage() };
   }
 
   return { status: "correct", message: "That was the right QR code. Your next chore is unlocked." };
@@ -574,7 +600,7 @@ async function unlockToken(token, options = {}){
   const expected = TOKENS[teamKey][state.progressIndex];
   if (!expected){
     const message = isReadyForVictory(state, teamKey)
-      ? "You found every clue. Tap I found the final egg! to lock in your placement."
+      ? finalEggReadyMessage()
       : "This team has already finished every clue.";
     if (!quiet) setFeedback(message);
     return { status: isReadyForVictory(state, teamKey) ? "ready-final-egg" : "finished", message };
@@ -609,22 +635,25 @@ function renderFinalEggCard(){
     return;
   }
 
+  const finalEgg = finalEggInfo();
+
   if (isReadyForVictory(state, teamKey)){
     card.classList.remove("hidden");
-    badge.textContent = "🏁 Final egg ready";
-    title.textContent = "You made it to the last stop.";
-    copy.textContent = "When your team has the final egg, tap the button below to lock in your placement.";
+    badge.textContent = "🥚 Final egg clue";
+    title.textContent = "Find the last egg!";
+    copy.textContent = `${finalEgg.hint} When your team has the final egg, tap the button below to lock in your placement.`;
     claimBtn.classList.remove("hidden");
     viewBtn.classList.add("hidden");
     return;
   }
 
   if (state.finished){
-    const place = finishPlacementForTeam(teamKey);
+    const place = finishPlacementForTeam(teamKey) || 1;
+    const prizeText = placementPrizeText(place);
     card.classList.remove("hidden");
     badge.textContent = "🏆 Victory locked";
-    title.textContent = `Your team finished in ${placementLabel(place || 1)}.`;
-    copy.textContent = "Your placement is locked in. Open the victory page or check the leaderboard to see the standings.";
+    title.textContent = `Your team finished in ${placementLabel(place)} and won ${prizeText}.`;
+    copy.textContent = `Get ${prizeText} from Ma. Your placement is locked in and the leaderboard has been updated.`;
     claimBtn.classList.add("hidden");
     viewBtn.classList.remove("hidden");
     return;
@@ -641,12 +670,13 @@ function hideVictoryOverlay(){
 function showVictoryOverlay(){
   if (!teamKey || !state || !state.finished) return;
   const place = finishPlacementForTeam(teamKey) || 1;
-  if (el("victoryTitle")) el("victoryTitle").textContent = `${state.teamName} finished the hunt!`;
-  if (el("victoryPlacement")) el("victoryPlacement").textContent = `Your team came in ${placementLabel(place)}.`;
+  const prizeText = placementPrizeText(place);
+  if (el("victoryTitle")) el("victoryTitle").textContent = `${state.teamName} found the final egg!`;
+  if (el("victoryPlacement")) el("victoryPlacement").textContent = `Your team came in ${placementLabel(place)} and won ${prizeText}.`;
   if (el("victoryRankWord")) el("victoryRankWord").textContent = placementLabel(place).replace(/^./, char => char.toUpperCase());
   if (el("victoryMeta")) el("victoryMeta").textContent = place <= 3
-    ? `The leaderboard has been updated and your team earned the ${place === 1 ? "gold" : place === 2 ? "silver" : "bronze"} trophy.`
-    : "The leaderboard has been updated with your final placement.";
+    ? `You won ${prizeText}. Get it from Ma. The leaderboard has been updated and your team earned the ${place === 1 ? "gold" : place === 2 ? "silver" : "bronze"} trophy.`
+    : `You won ${prizeText}. Get it from Ma. The leaderboard has been updated with your final placement.`;
   const overlay = el("victoryOverlay");
   if (overlay) overlay.classList.remove("hidden");
 }
@@ -658,7 +688,7 @@ async function claimVictory(){
     return;
   }
   if (!isReadyForVictory(state, teamKey)){
-    setFeedback("Finish the last clue before you claim the final egg.");
+    setFeedback("Find the final egg before you claim it.");
     return;
   }
 
@@ -668,7 +698,8 @@ async function claimVictory(){
   if (supabaseReady) await fetchLeaderboard();
   renderFinalEggCard();
   showVictoryOverlay();
-  setFeedback(`Victory locked in for ${state.teamName}.`);
+  const place = finishPlacementForTeam(teamKey) || 1;
+  setFeedback(`Victory locked in for ${state.teamName}. Get ${placementPrizeText(place)} from Ma.`);
 }
 
 function showPhotoPlaceholder(message){
@@ -1214,9 +1245,9 @@ async function adminGrantNext(){
   const clueName = currentClue?.location || `Clue ${currentClueId}`;
   if (targetState.finished) {
     const place = finishPlacementForTeam(team) || finishedPlacementRows().length;
-    el("adminPanelFeedback").textContent = `${TEAMS[team].label} finished the hunt in ${placementLabel(place)}.`;
+    el("adminPanelFeedback").textContent = `${TEAMS[team].label} finished the hunt in ${placementLabel(place)} and won ${placementPrizeText(place)}.`;
   } else if (result.status === "ready-final-egg") {
-    el("adminPanelFeedback").textContent = `Granted ${TEAMS[team].label} the final clue. They can now tap I found the final egg!`;
+    el("adminPanelFeedback").textContent = `Granted ${TEAMS[team].label} the final egg message. They can now go find the final egg and tap I found the final egg!`;
   } else {
     el("adminPanelFeedback").textContent = `Granted ${TEAMS[team].label} past ${clueName} (step ${currentStep}).`;
   }
