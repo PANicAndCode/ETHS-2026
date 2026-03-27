@@ -10,6 +10,7 @@ let supabaseClient = null;
 let liveBoardCache = {};
 let qrScanner = null;
 let scannerStarted = false;
+let scannerStarting = false;
 let lastScanned = "";
 let lastScanAt = 0;
 
@@ -187,6 +188,7 @@ function setPage(pageId){
   const page = el(pageId);
   if (page) page.classList.add("activePage");
   document.querySelectorAll(".menuBtn").forEach(btn => btn.classList.toggle("active", btn.dataset.page === pageId));
+  if (pageId === "scanPage") initScanner();
 }
 
 function renderGateTeams(selected){
@@ -316,40 +318,71 @@ async function unlockToken(token){
   await renderAll();
 }
 
-async function initScanner(){
+async function initScanner(forceRestart = false){
   const scanMessage = el("scanMessage");
-  if (typeof Html5QrcodeScanner === "undefined"){
+  const reader = el("qr-reader");
+  if (!scanMessage || !reader) return;
+  if (typeof Html5Qrcode === "undefined"){
     scanMessage.textContent = "QR scanner library did not load. Use manual code entry below.";
     return;
   }
-  if (scannerStarted) return;
+  if (scannerStarting) return;
+  if (scannerStarted && !forceRestart) return;
+
+  scannerStarting = true;
+  scanMessage.textContent = "Starting camera… If prompted, allow camera access.";
+
   try{
-    qrScanner = new Html5QrcodeScanner(
-      "qr-reader",
-      {
-        fps: 10,
-        qrbox: { width: 300, height: 300 },
-        rememberLastUsedCamera: true,
-        supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA, Html5QrcodeScanType.SCAN_TYPE_FILE],
-        videoConstraints: {
-          facingMode: { ideal: "environment" }
-        }
-      },
-      false
-    );
-    qrScanner.render(async decodedText => {
+    if (forceRestart && qrScanner){
+      try { if (qrScanner.isScanning) await qrScanner.stop(); } catch (e) {}
+      try { await qrScanner.clear(); } catch (e) {}
+      qrScanner = null;
+      scannerStarted = false;
+      reader.innerHTML = "";
+    }
+
+    if (!qrScanner) qrScanner = new Html5Qrcode("qr-reader");
+
+    const onScan = async decodedText => {
       const nowMs = Date.now();
       if (decodedText && (decodedText !== lastScanned || nowMs - lastScanAt > 2500)){
         lastScanned = decodedText;
         lastScanAt = nowMs;
         await unlockToken(decodedText);
       }
-    }, () => {});
+    };
+
+    const config = {
+      fps: 10,
+      qrbox: { width: 280, height: 280 },
+      aspectRatio: 0.75,
+      rememberLastUsedCamera: true
+    };
+
+    try {
+      await qrScanner.start(
+        { facingMode: { exact: "environment" } },
+        config,
+        onScan,
+        () => {}
+      );
+    } catch (firstError) {
+      await qrScanner.start(
+        { facingMode: "environment" },
+        config,
+        onScan,
+        () => {}
+      );
+    }
+
     scannerStarted = true;
-    scanMessage.textContent = "Use the camera scanner below, or switch to file scan if needed.";
+    scanMessage.textContent = "Camera is live. Point it at the egg QR code, or type the code manually below.";
   } catch (error){
     console.error(error);
-    scanMessage.textContent = "Camera scanner could not start. Use manual code entry below.";
+    scanMessage.textContent = "Camera could not start automatically. Tap Restart camera or use manual code entry below.";
+    scannerStarted = false;
+  } finally {
+    scannerStarting = false;
   }
 }
 
@@ -499,6 +532,9 @@ el("unlockBtn").addEventListener("click", async () => {
   if (!val) return;
   await unlockToken(val);
   el("manualCode").value = "";
+});
+el("restartCameraBtn")?.addEventListener("click", async () => {
+  await initScanner(true);
 });
 el("hintBtn").addEventListener("click", async () => {
   if (!state) return;
