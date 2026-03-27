@@ -4,8 +4,8 @@ const CLUES = {
     "location": "Garden",
     "hint": "Check the garden.",
     "zone": {
-      "x": 20,
-      "y": 52
+      "x": 19,
+      "y": 55
     }
   },
   "2": {
