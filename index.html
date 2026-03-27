@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Easter Chore Hunt</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="teamGate" class="gateOverlay">
+    <div class="gateCard">
+      <div class="badge big-badge">🐣 Pick your team</div>
+      <h1 class="gateTitle">Welcome to the Easter Chore Hunt</h1>
+      <p class="gateCopy">Choose your team, give it a name, and start the hunt.</p>
+      <div class="teamButtons gateTeams" id="gateTeamButtons"></div>
+      <div class="spacer"></div>
+      <input id="gateTeamName" placeholder="Enter team name">
+      <div class="spacer"></div>
+      <button class="primary full" id="startGameBtn">Start hunt</button>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">🐰 Easter Chore Hunt</div>
+      <nav class="menu">
+        <button class="menuBtn active" data-page="choresPage">Chores</button>
+        <button class="menuBtn" data-page="mapPage">Map</button>
+        <button class="menuBtn" data-page="leaderboardPage">Leaderboard</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container grid appShell">
+    <section class="hero card">
+      <div class="badge">🌷 Easter adventure</div>
+      <h1>Find eggs. Unlock chores. Beat the other teams.</h1>
+      <p>Your first chore appears right away. Each egg unlocks only the next chore for your team.</p>
+      <div class="kpis">
+        <div class="kpi kpi-green">
+          <div class="small">Progress</div>
+          <strong id="progressCount">0 / 11</strong>
+          <div class="progress"><div id="progressBar" style="width:0%"></div></div>
+        </div>
+        <div class="kpi kpi-amber">
+          <div class="small">Hints used</div>
+          <strong id="hintCount">0 / 3</strong>
+          <div class="muted" id="hintStatus">Hint ready</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="choresPage" class="page activePage">
+      <div class="grid main">
+        <div class="grid">
+          <div class="card">
+            <div class="sectionTitleRow">
+              <h2>Chore list</h2>
+              <div class="teamPill" id="teamDisplay"></div>
+            </div>
+            <p>Locations stay hidden for the current chore. Completed chores reveal where that stop was found.</p>
+            <div class="list" id="choreList"></div>
+          </div>
+        </div>
+        <div class="grid">
+          <div class="card panel">
+            <h2>Scan next egg</h2>
+            <div class="muted" id="scanMessage">Use your camera to scan the egg QR code, or type the code manually.</div>
+            <div class="videoBox" id="videoBox">Camera preview</div>
+            <input id="manualCode" placeholder="Paste or type QR code value">
+            <button class="primary" id="unlockBtn">Unlock</button>
+          </div>
+          <div class="card panel">
+            <div class="hintHeader">
+              <h2>Hint station</h2>
+              <div class="hintActionRow">
+                <button class="amber" id="hintBtn">Use hint</button>
+                <span class="timerPill" id="hintTimerPill" hidden>10:00</span>
+              </div>
+            </div>
+            <div class="small" id="hintsLeft">Hints left: 3</div>
+            <div class="warn" id="hintBox">No hint displayed yet for this active clue.</div>
+          </div>
+          <div class="note" id="feedbackBox">Ready to play.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="mapPage" class="page">
+      <div class="grid main">
+        <div class="card">
+          <h2>Map view</h2>
+          <p>The current stop stays hidden. Completed stops appear on the map after the next scan.</p>
+          <div class="mapWrap">
+            <img src="property-map.png" alt="Property map">
+            <div id="mapPins"></div>
+          </div>
+        </div>
+        <div class="card panel">
+          <h2>How the map works</h2>
+          <div class="muted">The map uses your <code>property-map.png</code> image as the background and places clue markers using percentage coordinates from <code>config.js</code>.</div>
+          <ul class="helpList">
+            <li>Replace <code>property-map.png</code> with your final clean map image.</li>
+            <li>Edit each clue’s <code>zone.x</code> and <code>zone.y</code> values in <code>config.js</code>.</li>
+            <li>Values are percentages of the image width and height.</li>
+            <li>Refresh the page after each change to check placement.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="leaderboardPage" class="page">
+      <div class="grid main">
+        <div class="card panel">
+          <h2>Leaderboard</h2>
+          <p id="leaderboardModeText">Connecting to Supabase leaderboard…</p>
+          <div class="leader" id="leaderboard"></div>
+        </div>
+        <div class="card panel">
+          <h2>Team settings</h2>
+          <p>Rename your current team or reset progress on this device.</p>
+          <input id="teamName" placeholder="Team name">
+          <button class="primary" id="saveNameBtn">Save team name</button>
+          <button id="resetBtn">Reset this team</button>
+          <div class="warn">This version is built for a shared Supabase leaderboard. Team progress still stays on each device unless you also store full game state in Supabase.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="supabase-config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="script.js"></script>
+</body>
+</html>
