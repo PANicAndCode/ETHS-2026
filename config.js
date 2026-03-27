@@ -5,7 +5,7 @@ const CLUES = {
     "hint": "Check the garden.",
     "zone": {
       "x": 20,
-      "y": 50
+      "y": 52
     }
   },
   "2": {
