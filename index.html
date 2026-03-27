@@ -22,7 +22,7 @@
 
   <header class="topbar">
     <div class="topbar-inner">
-      <div class="brand" id="brandTrigger">🐰 Easter Chore Hunt</div>
+      <div class="brand"><button id="rabbitTrigger" class="rabbitBtn" aria-label="Admin access">🐰</button><span>Easter Chore Hunt</span></div>
       <nav class="menu">
         <button class="menuBtn active" data-page="choresPage">Chores</button>
         <button class="menuBtn" data-page="mapPage">Map</button>
@@ -116,12 +116,7 @@
           <p id="leaderboardModeText">Trying to connect to Supabase…</p>
           <div class="leader" id="leaderboard"></div>
         </div>
-        <div class="card panel">
-          <h2>Team access</h2>
-          <p>Team names are locked after the first person claims them. Team progress can still be reloaded automatically when a team joins on another device.</p>
-          <div class="warn">Players cannot edit team settings in this version.</div>
         </div>
-      </div>
     </section>
   </main>
 
@@ -132,15 +127,14 @@
   <script src="script.js"></script>
 
   <div id="adminOverlay" class="gateOverlay hidden">
-    <div class="gateCard">
+    <div class="gateCard adminCard">
+      <button id="adminCloseX" class="adminCloseX" aria-label="Close">×</button>
       <div class="badge big-badge">🥚 Admin access</div>
       <h1 class="gateTitle">Admin controls</h1>
       <p class="gateCopy">Enter the admin passcode to unlock management tools.</p>
       <input id="adminPasscode" placeholder="Enter admin passcode">
       <div class="spacer"></div>
       <button class="primary full" id="adminUnlockBtn">Unlock admin</button>
-      <div class="spacer"></div>
-      <button class="full" id="adminCancelBtn">Cancel</button>
       <div class="spacer"></div>
       <div class="warn" id="adminFeedback">Admin tools are hidden from players.</div>
     </div>

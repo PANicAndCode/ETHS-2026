@@ -36,3 +36,11 @@ Admin-only version:
 - default admin passcode: bunnyboss
 - admin can rename teams, reload shared progress, and reset any team
 - player-facing team settings remain hidden
+
+
+Rabbit admin access version:
+- player-facing team settings are completely removed
+- click the rabbit next to "Easter Chore Hunt" to open passcode prompt
+- passcode: bunnyboss
+- any other passcode closes the prompt
+- there is an X button to close the prompt

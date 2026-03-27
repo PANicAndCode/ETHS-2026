@@ -76,3 +76,36 @@ input{border:1px solid #e4d5c4;width:100%;background:white}
 
 #brandTrigger{cursor:pointer;user-select:none}
 select{font:inherit;border-radius:16px;padding:12px 14px;border:1px solid #e4d5c4;width:100%;background:white}
+
+
+.rabbitBtn{
+  border:none;
+  background:transparent;
+  padding:0;
+  margin-right:8px;
+  font-size:1.2em;
+  line-height:1;
+  cursor:pointer;
+}
+.brand{
+  display:flex;
+  align-items:center;
+  font-weight:800;
+}
+.adminCard{
+  position:relative;
+}
+.adminCloseX{
+  position:absolute;
+  top:14px;
+  right:14px;
+  width:38px;
+  height:38px;
+  border-radius:999px;
+  border:1px solid #e8d7c3;
+  background:white;
+  font-size:22px;
+  line-height:1;
+  padding:0;
+  cursor:pointer;
+}
