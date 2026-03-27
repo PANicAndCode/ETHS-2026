@@ -118,11 +118,12 @@
         </div>
         <div class="card panel">
           <h2>Team settings</h2>
-          <p>Rename your current team or reset progress on this device.</p>
+          <p>Rename your current team, reload shared progress, or reset progress for this team.</p>
           <input id="teamName" placeholder="Team name">
           <button class="primary" id="saveNameBtn">Save team name</button>
+          <button id="reloadBtn">Reload shared progress</button>
           <button id="resetBtn">Reset this team</button>
-          <div class="warn">This version is built for a shared Supabase leaderboard. Team progress still stays on each device unless you also store full game state in Supabase.</div>
+          <div class="warn">This version stores both the leaderboard and full team progress in Supabase so a team can switch devices.</div>
         </div>
       </div>
     </section>

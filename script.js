@@ -1,5 +1,5 @@
 const COOLDOWN_MINUTES = 10;
-const STORAGE_PREFIX = "easter-hunt-supabase-v1";
+const STORAGE_PREFIX = "easter-hunt-supabase-progress-v1";
 
 let teamKey = null;
 let state = null;
@@ -15,24 +15,29 @@ const leaderboardModeText = document.getElementById("leaderboardModeText");
 function initSupabase(){
   try{
     if (!window.SUPABASE_CONFIG || !window.SUPABASE_CONFIG.url || !window.SUPABASE_CONFIG.anonKey || window.SUPABASE_CONFIG.url.startsWith("PASTE_")){
-      leaderboardModeText.textContent = "Supabase is not configured yet. The page is using local browser leaderboard data until you add your Supabase keys.";
+      leaderboardModeText.textContent = "Supabase is not configured yet. The page is using local browser data until you add your Supabase keys.";
       return;
     }
     supabaseClient = window.supabase.createClient(window.SUPABASE_CONFIG.url, window.SUPABASE_CONFIG.anonKey);
     supabaseReady = true;
-    leaderboardModeText.textContent = "Live shared leaderboard is connected through Supabase.";
+    leaderboardModeText.textContent = "Live shared leaderboard and team progress are connected through Supabase.";
     fetchLeaderboard();
     subscribeLeaderboard();
   } catch (error){
     console.error(error);
-    leaderboardModeText.textContent = "Supabase could not connect. The page is using local browser leaderboard data.";
+    leaderboardModeText.textContent = "Supabase could not connect. The page is using local browser data.";
   }
 }
 
 function storageKey(team){ return `${STORAGE_PREFIX}-${team}`; }
 function leaderboardKey(){ return `${STORAGE_PREFIX}-leaderboard`; }
-function defaultState(teamLabel){ return { teamName: teamLabel, progressIndex: 0, completed: [], scannedTokens: [], usedHints: 0, nextHintAt: null, finished: false, startedAt: Date.now(), lastUpdatedAt: Date.now() }; }
-function loadState(team){ const saved = localStorage.getItem(storageKey(team)); return saved ? JSON.parse(saved) : defaultState(TEAMS[team].label); }
+function defaultState(teamLabel){
+  return { teamName: teamLabel, progressIndex: 0, completed: [], scannedTokens: [], usedHints: 0, nextHintAt: null, finished: false, startedAt: Date.now(), lastUpdatedAt: Date.now() };
+}
+function loadLocalState(team){
+  const saved = localStorage.getItem(storageKey(team));
+  return saved ? JSON.parse(saved) : defaultState(TEAMS[team].label);
+}
 function saveLocalState(){ if (teamKey && state) localStorage.setItem(storageKey(teamKey), JSON.stringify(state)); }
 function saveLocalBoard(){
   const board = JSON.parse(localStorage.getItem(leaderboardKey()) || "{}");
@@ -56,19 +61,52 @@ async function fetchLeaderboard(){
   (data || []).forEach(row => { liveBoardCache[row.team_id] = row; });
   renderBoard();
 }
-
 function subscribeLeaderboard(){
   if (!supabaseReady) return;
-  supabaseClient
-    .channel('leaderboard-live')
+  supabaseClient.channel('leaderboard-live')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'leaderboard' }, payload => {
       const row = payload.new || payload.old;
       if (!row || !row.team_id) return;
       if (payload.eventType === 'DELETE') delete liveBoardCache[row.team_id];
       else liveBoardCache[row.team_id] = row;
       renderBoard();
-    })
-    .subscribe();
+    }).subscribe();
+}
+
+async function loadRemoteProgress(team){
+  if (!supabaseReady) return null;
+  const { data, error } = await supabaseClient.from("team_progress").select("*").eq("team_id", team).maybeSingle();
+  if (error) { console.error(error); return null; }
+  if (!data) return null;
+  return {
+    teamName: data.team_name,
+    progressIndex: data.progress_index,
+    completed: Array.isArray(data.completed) ? data.completed : [],
+    scannedTokens: Array.isArray(data.scanned_tokens) ? data.scanned_tokens : [],
+    usedHints: data.used_hints ?? 0,
+    nextHintAt: data.next_hint_at,
+    finished: !!data.finished,
+    startedAt: data.started_at,
+    lastUpdatedAt: data.last_updated_at
+  };
+}
+
+async function pushRemoteProgress(){
+  if (!teamKey || !state || !supabaseReady) return;
+  const payload = {
+    team_id: teamKey,
+    team_name: state.teamName,
+    progress_index: state.progressIndex,
+    completed: state.completed,
+    scanned_tokens: state.scannedTokens,
+    used_hints: state.usedHints,
+    next_hint_at: state.nextHintAt,
+    finished: state.finished,
+    started_at: state.startedAt,
+    last_updated_at: state.lastUpdatedAt
+  };
+  const { error } = await supabaseClient.from("team_progress").upsert(payload, { onConflict: "team_id" });
+  if (error) console.error(error);
 }
 
 async function pushLeaderboard(){
@@ -98,7 +136,16 @@ function renderGateTeams(selected){
     const btn = document.createElement("button");
     btn.className = "teamBtn" + (key === selected ? " selected" : "");
     btn.textContent = team.label;
-    btn.onclick = () => { teamKey = key; renderGateTeams(teamKey); const existing = loadState(teamKey); document.getElementById("gateTeamName").value = existing.teamName || team.label; };
+    btn.onclick = async () => {
+      teamKey = key;
+      renderGateTeams(teamKey);
+      let existing = loadLocalState(teamKey);
+      if (supabaseReady){
+        const remote = await loadRemoteProgress(teamKey);
+        if (remote) existing = remote;
+      }
+      document.getElementById("gateTeamName").value = existing.teamName || team.label;
+    };
     mount.appendChild(btn);
   });
 }
@@ -151,15 +198,25 @@ function renderBoard(){
     el.appendChild(div);
   });
 }
-function renderAll(){ if (!teamKey || !state) return; saveLocalState(); pushLeaderboard(); renderTop(); renderChores(); renderMap(); renderHint(); renderBoard(); }
-function unlockToken(token){
+async function persistAll(){
+  saveLocalState();
+  await pushRemoteProgress();
+  await pushLeaderboard();
+}
+async function renderAll(){
+  if (!teamKey || !state) return;
+  await persistAll();
+  renderTop(); renderChores(); renderMap(); renderHint(); renderBoard();
+}
+async function unlockToken(token){
   const seq = TEAMS[teamKey].sequence; const expected = TOKENS[teamKey][state.progressIndex];
   if (!expected){ setFeedback("This team has already finished every clue."); return; }
   if (token.trim() !== expected){ setFeedback("That code does not match this team’s next egg."); return; }
   const finishedStep = seq[state.progressIndex];
   state.completed.push(finishedStep); state.scannedTokens.push(token.trim()); state.progressIndex += 1;
   state.finished = state.progressIndex >= seq.length || token.includes("FINISH"); state.lastUpdatedAt = Date.now();
-  setFeedback(state.finished ? "You finished the hunt. Happy Easter!" : "Great job. Your next chore is unlocked."); renderAll();
+  setFeedback(state.finished ? "You finished the hunt. Happy Easter!" : "Great job. Your next chore is unlocked.");
+  await renderAll();
 }
 async function initScanner(){
   if (!("BarcodeDetector" in window)){ document.getElementById("scanMessage").textContent = "Camera QR scanning is not supported on this device. Use manual code entry below."; return; }
@@ -175,7 +232,7 @@ async function initScanner(){
         const codes = await detector.detect(video);
         if (codes && codes.length){
           const val = codes[0].rawValue; const nowMs = Date.now();
-          if (val && (val !== lastScanned || nowMs - lastScanAt > 2500)){ lastScanned = val; lastScanAt = nowMs; unlockToken(val); }
+          if (val && (val !== lastScanned || nowMs - lastScanAt > 2500)){ lastScanned = val; lastScanAt = nowMs; await unlockToken(val); }
         }
       }catch(e){}
       requestAnimationFrame(loop);
@@ -183,17 +240,44 @@ async function initScanner(){
   } catch (e) { document.getElementById("scanMessage").textContent = "Camera access was unavailable. Use manual code entry below."; }
 }
 document.querySelectorAll(".menuBtn").forEach(btn => btn.addEventListener("click", () => setPage(btn.dataset.page)));
-document.getElementById("startGameBtn").onclick = () => {
+document.getElementById("startGameBtn").onclick = async () => {
   if (!teamKey){ setFeedback("Choose a team first."); return; }
   const enteredName = document.getElementById("gateTeamName").value.trim();
-  state = loadState(teamKey); state.teamName = enteredName || state.teamName || TEAMS[teamKey].label; state.lastUpdatedAt = Date.now();
-  document.getElementById("teamGate").classList.add("hidden"); renderAll(); initScanner();
+  let loaded = loadLocalState(teamKey);
+  if (supabaseReady){
+    const remote = await loadRemoteProgress(teamKey);
+    if (remote) loaded = remote;
+  }
+  state = loaded;
+  state.teamName = enteredName || state.teamName || TEAMS[teamKey].label;
+  state.lastUpdatedAt = Date.now();
+  document.getElementById("teamGate").classList.add("hidden");
+  await renderAll();
+  initScanner();
 };
-document.getElementById("unlockBtn").onclick = () => { const val = document.getElementById("manualCode").value.trim(); if (!val) return; unlockToken(val); document.getElementById("manualCode").value = ""; };
-document.getElementById("hintBtn").onclick = () => {
+document.getElementById("unlockBtn").onclick = async () => {
+  const val = document.getElementById("manualCode").value.trim();
+  if (!val) return;
+  await unlockToken(val);
+  document.getElementById("manualCode").value = "";
+};
+document.getElementById("hintBtn").onclick = async () => {
   const locked = state.nextHintAt && now < state.nextHintAt; if (state.usedHints >= 3 || locked) return;
-  state.usedHints += 1; state.nextHintAt = state.usedHints >= 3 ? null : Date.now() + COOLDOWN_MINUTES * 60 * 1000; state.lastUpdatedAt = Date.now(); renderAll();
+  state.usedHints += 1; state.nextHintAt = state.usedHints >= 3 ? null : Date.now() + COOLDOWN_MINUTES * 60 * 1000; state.lastUpdatedAt = Date.now(); await renderAll();
 };
-document.getElementById("resetBtn").onclick = () => { state = defaultState(TEAMS[teamKey].label); renderAll(); setFeedback("Team progress has been reset."); };
-document.getElementById("saveNameBtn").onclick = () => { const v = document.getElementById("teamName").value.trim(); if (!v) return; state.teamName = v; state.lastUpdatedAt = Date.now(); renderAll(); setFeedback("Team name saved."); };
+document.getElementById("resetBtn").onclick = async () => {
+  state = defaultState(TEAMS[teamKey].label); await renderAll(); setFeedback("Team progress has been reset.");
+};
+document.getElementById("reloadBtn").onclick = async () => {
+  if (!teamKey) return;
+  if (supabaseReady){
+    const remote = await loadRemoteProgress(teamKey);
+    if (remote){ state = remote; saveLocalState(); renderTop(); renderChores(); renderMap(); renderHint(); setFeedback("Shared progress reloaded."); return; }
+  }
+  setFeedback("No shared progress found for this team yet.");
+};
+document.getElementById("saveNameBtn").onclick = async () => {
+  const v = document.getElementById("teamName").value.trim(); if (!v) return;
+  state.teamName = v; state.lastUpdatedAt = Date.now(); await renderAll(); setFeedback("Team name saved.");
+};
 initSupabase(); renderGateTeams(null); setPage("choresPage"); setInterval(() => { now = Date.now(); if (state){ renderTop(); renderHint(); } }, 1000);
