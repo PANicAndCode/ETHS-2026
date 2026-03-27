@@ -4,8 +4,10 @@ const STORAGE_PREFIX = "easter-hunt-supabase-progress-v1";
 let teamKey = null;
 let state = null;
 let now = Date.now();
-let detector = null;
-let stream = null;
+let html5QrScanner = null;
+let scannerStarted = false;
+let lastScanned = "";
+let lastScanAt = 0;
 let supabaseReady = false;
 let supabaseClient = null;
 let liveBoardCache = {};
@@ -219,25 +221,58 @@ async function unlockToken(token){
   await renderAll();
 }
 async function initScanner(){
-  if (!("BarcodeDetector" in window)){ document.getElementById("scanMessage").textContent = "Camera QR scanning is not supported on this device. Use manual code entry below."; return; }
+  const scanMessage = document.getElementById("scanMessage");
+  const readerId = "qr-reader";
+  const readerEl = document.getElementById(readerId);
+  if (!readerEl){
+    scanMessage.textContent = "Scanner area is missing. Use manual code entry below.";
+    return;
+  }
+  if (typeof Html5Qrcode === "undefined"){
+    scanMessage.textContent = "QR scanner library did not load. Use manual code entry below.";
+    return;
+  }
+
   try{
-    const formats = await BarcodeDetector.getSupportedFormats();
-    if (!formats.includes("qr_code")){ document.getElementById("scanMessage").textContent = "QR format support is missing in this browser. Use manual code entry below."; return; }
-    detector = new BarcodeDetector({formats:["qr_code"]}); stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } } });
-    const video = document.createElement("video"); video.setAttribute("playsinline","true"); video.autoplay = true; video.muted = true; video.srcObject = stream;
-    const box = document.getElementById("videoBox"); box.innerHTML = ""; box.appendChild(video); document.getElementById("scanMessage").textContent = "Camera is live. Point it at the QR code inside the egg.";
-    let lastScanned = ""; let lastScanAt = 0;
-    const loop = async () => {
-      try{
-        const codes = await detector.detect(video);
-        if (codes && codes.length){
-          const val = codes[0].rawValue; const nowMs = Date.now();
-          if (val && (val !== lastScanned || nowMs - lastScanAt > 2500)){ lastScanned = val; lastScanAt = nowMs; await unlockToken(val); }
+    if (html5QrScanner && scannerStarted){
+      return;
+    }
+
+    html5QrScanner = new Html5Qrcode(readerId);
+    const cameras = await Html5Qrcode.getCameras();
+
+    if (!cameras || !cameras.length){
+      scanMessage.textContent = "No camera was found on this device. Use manual code entry below.";
+      return;
+    }
+
+    const preferredCameraId = cameras[0].id;
+    scanMessage.textContent = "Starting camera scanner…";
+
+    await html5QrScanner.start(
+      preferredCameraId,
+      {
+        fps: 10,
+        qrbox: { width: 220, height: 220 },
+        aspectRatio: 1.3333333
+      },
+      async (decodedText) => {
+        const nowMs = Date.now();
+        if (decodedText && (decodedText !== lastScanned || nowMs - lastScanAt > 2500)){
+          lastScanned = decodedText;
+          lastScanAt = nowMs;
+          await unlockToken(decodedText);
         }
-      }catch(e){}
-      requestAnimationFrame(loop);
-    }; requestAnimationFrame(loop);
-  } catch (e) { document.getElementById("scanMessage").textContent = "Camera access was unavailable. Use manual code entry below."; }
+      },
+      () => {}
+    );
+
+    scannerStarted = true;
+    scanMessage.textContent = "Camera is live. Point it at the QR code inside the egg.";
+  } catch (e) {
+    console.error(e);
+    scanMessage.textContent = "Camera access was unavailable or blocked. Use manual code entry below.";
+  }
 }
 document.querySelectorAll(".menuBtn").forEach(btn => btn.addEventListener("click", () => setPage(btn.dataset.page)));
 document.getElementById("startGameBtn").onclick = async () => {
