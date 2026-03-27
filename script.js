@@ -513,7 +513,7 @@ function renderChores(){
       div.innerHTML = `<strong>${clue.title}</strong>${clue.subtitle ? `<div class="muted">${clue.subtitle}</div>` : ""}<div class="muted">Found at: <strong>${clue.location}</strong></div>`;
     } else if (idx === state.progressIndex) {
       const activeCopy = isOnFinalClue(state, teamKey)
-        ? "Find the final egg, then wait 2 minutes before tapping I found the final egg!"
+        ? "Find the final egg, then tap I found the final egg!"
         : "Find the egg, then scan its QR code to unlock the next chore.";
       div.innerHTML = `<strong>${clue.title}</strong>${clue.subtitle ? `<div class="muted">${clue.subtitle}</div>` : ""}<div class="muted">${activeCopy}</div>`;
     } else {
