@@ -115,7 +115,8 @@ const TEAMS = {
       7,
       8,
       9,
-      10
+      10,
+      11
     ]
   },
   "Team2": {
@@ -130,7 +131,8 @@ const TEAMS = {
       6,
       4,
       10,
-      7
+      7,
+      11
     ]
   },
   "Team3": {
@@ -145,7 +147,8 @@ const TEAMS = {
       5,
       8,
       3,
-      6
+      6,
+      11
     ]
   },
   "Team4": {
@@ -160,7 +163,8 @@ const TEAMS = {
       10,
       2,
       8,
-      5
+      5,
+      11
     ]
   },
   "Team5": {
@@ -175,70 +179,76 @@ const TEAMS = {
       4,
       1,
       9,
-      3
+      3,
+      11
     ]
   }
 };
 
 const TOKENS = {
   "Team1": [
-    "LKA55EESG4",
-    "TWN8D57KXZ",
-    "DK62GH4J52",
-    "9R435KNSY7",
-    "X5ACQBHYSV",
-    "NK5H8RW3KD",
-    "RNFL5UA5J7",
-    "CKGRJ7EJU9",
-    "6M4P229JQ8",
-    "FVW79P4P7C"
+    "OGZMXS7VJB",
+    "60GIIUEG45",
+    "KDEAYOPPXE",
+    "07R78W8USC",
+    "DA17HH1YCL",
+    "HKD5RKKNM3",
+    "C10PEXRT5Z",
+    "G942RD8UA7",
+    "UO6AZKDN71",
+    "YOI2ZQGYGL",
+    "TK0KAKONVN"
   ],
   "Team2": [
-    "YCUPHGW8U7",
-    "B25EHBLLYR",
-    "877AWPKLJD",
-    "SLQEXJYV33",
-    "G5CQR2FA54",
-    "T94QLS7RKW",
-    "H2BM5JQCCG",
-    "5G2GN9RYH8",
-    "PTCC83LKS6",
-    "BLHMHC557N"
+    "DA17HH1YCL",
+    "OGZMXS7VJB",
+    "G942RD8UA7",
+    "60GIIUEG45",
+    "UO6AZKDN71",
+    "KDEAYOPPXE",
+    "HKD5RKKNM3",
+    "07R78W8USC",
+    "YOI2ZQGYGL",
+    "C10PEXRT5Z",
+    "TK0KAKONVN"
   ],
   "Team3": [
-    "8ME7SM5M5U",
-    "QPQ7FQNNQ9",
-    "EFY3Z337NN",
-    "FQ6228FE4F",
-    "APRWHH2QNW",
-    "F5V9PULBME",
-    "STJ36X5CTC",
-    "QRK3ZHMTH5",
-    "4JWZVATWDQ",
-    "W6WT2TZT9P"
+    "C10PEXRT5Z",
+    "07R78W8USC",
+    "60GIIUEG45",
+    "YOI2ZQGYGL",
+    "OGZMXS7VJB",
+    "UO6AZKDN71",
+    "DA17HH1YCL",
+    "G942RD8UA7",
+    "KDEAYOPPXE",
+    "HKD5RKKNM3",
+    "TK0KAKONVN"
   ],
   "Team4": [
-    "Y4NF54DWFY",
-    "7WPG6PQTFV",
-    "A4QG7AS24L",
-    "KY6X64Q68U",
-    "3VYEHU3P2R",
-    "2KQULULGAW",
-    "HV53ZXMYQC",
-    "NAX6324ZS5",
-    "YX866XPRLK",
-    "RAPSSLKLGT"
+    "KDEAYOPPXE",
+    "HKD5RKKNM3",
+    "OGZMXS7VJB",
+    "UO6AZKDN71",
+    "07R78W8USC",
+    "C10PEXRT5Z",
+    "YOI2ZQGYGL",
+    "60GIIUEG45",
+    "G942RD8UA7",
+    "DA17HH1YCL",
+    "TK0KAKONVN"
   ],
   "Team5": [
-    "6GWL8R5SVH",
-    "MKM8RNKP32",
-    "N8WLH3LBTN",
-    "Q6HHCWMZQU",
-    "JWEUNJ3SYB",
-    "SC77M5ZWLH",
-    "9QGJ5P6WKC",
-    "ZZ9EKSSCMA",
-    "8YYUXRV6CU",
-    "7R22QNUJKX"
+    "G942RD8UA7",
+    "YOI2ZQGYGL",
+    "DA17HH1YCL",
+    "C10PEXRT5Z",
+    "60GIIUEG45",
+    "HKD5RKKNM3",
+    "07R78W8USC",
+    "OGZMXS7VJB",
+    "UO6AZKDN71",
+    "KDEAYOPPXE",
+    "TK0KAKONVN"
   ]
 };
