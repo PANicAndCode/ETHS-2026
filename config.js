@@ -4,27 +4,27 @@ const CLUES = {
     "location": "Garden",
     "hint": "Check the garden.",
     "zone": {
-      "x": 24,
-      "y": 57
+      "x": 20,
+      "y": 50
     }
   },
   "2": {
     "title": "Help Ma water the flowers.",
-    "location": "By the hose",
+    "location": "Hose",
     "hint": "Check under the watering can by the hose.",
     "zone": {
       "x": 45,
-      "y": 60
+      "y": 55
     }
   },
   "3": {
     "title": "Help Ma entertain Chris.",
-    "location": "Playset / Christopher challenge",
+    "location": "Playset",
     "hint": "Go grab a sword from the playset and fight Christopher.",
     "subtitle": "Grab something from the playset. Spare Christopher to three hits to get the next clue.",
     "zone": {
       "x": 49,
-      "y": 47
+      "y": 39
     }
   },
   "4": {
@@ -33,26 +33,26 @@ const CLUES = {
     "hint": "Go to the garage and find a satellite tower.",
     "zone": {
       "x": 40,
-      "y": 39
+      "y": 30
     }
   },
   "5": {
     "title": "Get dressed for Easter!",
-    "location": "Garage dresser",
+    "location": "Garage",
     "hint": "Go to the garage and check the dresser.",
     "subtitle": "There are Easter Bunny ears in the dresser. Make sure to wear them.",
     "zone": {
-      "x": 37,
-      "y": 42
+      "x": 39,
+      "y": 35
     }
   },
   "6": {
     "title": "Get the heavy duty sled to prepare for snow.",
-    "location": "By the toboggan",
+    "location": "Toboggan",
     "hint": "Go to the old chicken house down the hill from the garden and look around for a toboggan.",
     "zone": {
       "x": 5,
-      "y": 72
+      "y": 50
     }
   },
   "7": {
@@ -61,7 +61,7 @@ const CLUES = {
     "hint": "Go to the rain gauge toward the pond.",
     "zone": {
       "x": 57,
-      "y": 58
+      "y": 45
     }
   },
   "8": {
@@ -70,30 +70,30 @@ const CLUES = {
     "hint": "Go inside the old barn and look through the missing board.",
     "zone": {
       "x": 65,
-      "y": 46
+      "y": 35
     }
   },
   "9": {
     "title": "Help Ma fix her tweety friend camera.",
-    "location": "Bird feeder with camera",
+    "location": "Bird Feeder",
     "hint": "Go to the bird feeders and open the one with a camera.",
     "zone": {
-      "x": 45,
-      "y": 73
+      "x": 50,
+      "y": 40
     }
   },
   "10": {
     "title": "Help Ma pick some apples.",
-    "location": "Apple orchard",
+    "location": "Orchard",
     "hint": "Go look through the orchard.",
     "zone": {
-      "x": 38,
+      "x": 35,
       "y": 18
     }
   },
   "11": {
     "title": "FINAL EGG: Find the last egg!",
-    "location": "Pond / dock",
+    "location": "Dock",
     "hint": "Go to the pond and look around the dock for the final egg.",
     "zone": {
       "x": 74,
