@@ -9,24 +9,16 @@ Files:
 - supabase-config.example.js
 - property-map.png
 
-What is fixed:
+What is included now:
 - map and leaderboard are on the same page
-- the 'How the map works' section is removed
+- the old “How the map works” section is removed
 - scanner is on its own page
-- scanner area is larger on mobile
+- scanner now uses photo capture instead of a live camera feed
+- scanner reports one of these outcomes: right QR code, wrong QR code, or no QR code detected
 - rabbit button opens the admin passcode prompt
-- X closes the passcode prompt
-- if passcode is bunnyboss, admin tools open
-- any other passcode closes the prompt
+- if the passcode is `bunnyboss`, admin tools open
+- admin team changes and team progress now live-sync across devices when Supabase is configured
 
-Notes:
-- player-facing team settings are completely removed
-- leaderboard and team progress still use Supabase if configured
-- local fallback still works if Supabase is not configured
-
-
-v2 updates:
-- scanner now prefers the rear-facing camera by default
-- scanner area is full-width and taller
-- success text above leaderboard removed
-- rabbit button admin trigger hardened for mobile tap and click
+Important:
+- cross-device syncing only works when `supabase-config.js` is filled in with your real Supabase project URL and anon key
+- if `supabase-config.js` still has the placeholder values, the site falls back to local device storage only

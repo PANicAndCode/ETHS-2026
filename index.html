@@ -112,12 +112,19 @@
     <section id="scanPage" class="page">
       <div class="scanWrap">
         <div class="card panel scanCard">
-          <h2>Scan next egg</h2>
-          <div class="muted" id="scanMessage">Use your camera to scan the egg QR code or type the code manually.</div>
-          <div class="videoBox largeVideoBox"><div id="qr-reader" class="qrReader"></div></div>
-          <button id="restartCameraBtn" type="button">Restart camera</button>
+          <h2>Check next egg</h2>
+          <div class="muted" id="scanMessage">Take a photo of the egg QR code or type the code manually.</div>
+          <label class="buttonLike primary full captureBtn" for="qrPhotoInput">Take or choose a photo</label>
+          <input id="qrPhotoInput" class="hiddenFileInput" type="file" accept="image/*" capture="environment">
+          <div class="photoBox">
+            <div id="qr-reader" class="qrReader photoReader">
+              <div class="photoPlaceholder">No photo selected yet.</div>
+            </div>
+          </div>
+          <button id="clearPhotoBtn" type="button">Clear photo</button>
+          <div id="scanStatusBox" class="scanStatus scanStatusIdle">Waiting for a photo or code.</div>
           <input id="manualCode" placeholder="Paste or type QR code value">
-          <button class="primary" id="unlockBtn">Unlock</button>
+          <button class="primary" id="unlockBtn">Check code</button>
         </div>
       </div>
     </section>
@@ -135,6 +142,7 @@
         <div class="card panel">
           <h2>Leaderboard</h2>
           <div id="leaderboardModeText" class="leaderStatus" hidden></div>
+          <div id="sharedModeText" class="leaderStatus" hidden></div>
           <div class="leader" id="leaderboard"></div>
         </div>
       </div>

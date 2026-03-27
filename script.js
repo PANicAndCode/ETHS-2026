@@ -8,16 +8,18 @@ let now = Date.now();
 let supabaseReady = false;
 let supabaseClient = null;
 let liveBoardCache = {};
-let qrScanner = null;
-let scannerStarted = false;
-let scannerStarting = false;
-let lastScanned = "";
-let lastScanAt = 0;
+let liveProgressCache = {};
+let fileQrScanner = null;
 
 function el(id){ return document.getElementById(id); }
-
 function storageKey(team){ return `${STORAGE_PREFIX}-${team}`; }
 function leaderboardKey(){ return `${STORAGE_PREFIX}-leaderboard`; }
+function toMillis(value){
+  if (value == null || value === "") return 0;
+  if (typeof value === "number") return value;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
 
 function defaultState(teamLabel){
   return {
@@ -33,33 +35,75 @@ function defaultState(teamLabel){
   };
 }
 
-function loadLocalState(team){
-  const saved = localStorage.getItem(storageKey(team));
-  return saved ? JSON.parse(saved) : defaultState(TEAMS[team].label);
+function readJson(key, fallback){
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (error){
+    console.error(error);
+    return fallback;
+  }
 }
+
+function loadLocalState(team){
+  return readJson(storageKey(team), defaultState(TEAMS[team].label));
+}
+
 function saveLocalState(){
   if (teamKey && state) localStorage.setItem(storageKey(teamKey), JSON.stringify(state));
 }
+
 function saveLocalBoard(){
   if (!teamKey || !state) return;
-  const board = JSON.parse(localStorage.getItem(leaderboardKey()) || "{}");
+  const board = readJson(leaderboardKey(), {});
   board[teamKey] = { teamName: state.teamName, found: state.completed.length, finished: state.finished, lastUpdatedAt: state.lastUpdatedAt };
   localStorage.setItem(leaderboardKey(), JSON.stringify(board));
 }
+
 function localBoardRows(){
-  const board = JSON.parse(localStorage.getItem(leaderboardKey()) || "{}");
+  const board = readJson(leaderboardKey(), {});
   return Object.entries(TEAMS).map(([key, t]) => ({
-    key, teamName: board[key]?.teamName || t.label, found: board[key]?.found || 0, finished: board[key]?.finished || false, lastUpdatedAt: board[key]?.lastUpdatedAt || 0
-  })).sort((a,b)=> (b.found-a.found) || (a.lastUpdatedAt-b.lastUpdatedAt));
+    key,
+    teamName: board[key]?.teamName || t.label,
+    found: board[key]?.found || 0,
+    finished: board[key]?.finished || false,
+    lastUpdatedAt: board[key]?.lastUpdatedAt || 0
+  })).sort((a, b) => (b.found - a.found) || (toMillis(a.lastUpdatedAt) - toMillis(b.lastUpdatedAt)));
 }
+
 function remoteBoardRows(){
   return Object.entries(TEAMS).map(([key, t]) => ({
-    key, teamName: liveBoardCache[key]?.team_name || t.label, found: liveBoardCache[key]?.found || 0, finished: liveBoardCache[key]?.finished || false, lastUpdatedAt: liveBoardCache[key]?.last_updated_at || 0
-  })).sort((a,b)=> (b.found-a.found) || (a.lastUpdatedAt-b.lastUpdatedAt));
+    key,
+    teamName: liveBoardCache[key]?.team_name || t.label,
+    found: liveBoardCache[key]?.found || 0,
+    finished: liveBoardCache[key]?.finished || false,
+    lastUpdatedAt: liveBoardCache[key]?.last_updated_at || 0
+  })).sort((a, b) => (b.found - a.found) || (toMillis(a.lastUpdatedAt) - toMillis(b.lastUpdatedAt)));
 }
-function boardRows(){ return supabaseReady ? remoteBoardRows() : localBoardRows(); }
+
+function boardRows(){
+  return supabaseReady ? remoteBoardRows() : localBoardRows();
+}
 
 function setFeedback(msg){ if (el("feedbackBox")) el("feedbackBox").textContent = msg; }
+function setScanMessage(msg){ if (el("scanMessage")) el("scanMessage").textContent = msg; }
+function setScanStatus(status, msg){
+  const box = el("scanStatusBox");
+  if (!box) return;
+  const classMap = {
+    idle: "scanStatusIdle",
+    checking: "scanStatusChecking",
+    correct: "scanStatusSuccess",
+    wrong: "scanStatusError",
+    "no-qr": "scanStatusWarn",
+    "no-team": "scanStatusError",
+    finished: "scanStatusSuccess",
+    error: "scanStatusError"
+  };
+  box.className = `scanStatus ${classMap[status] || "scanStatusChecking"}`;
+  box.textContent = msg;
+}
+
 function fmtCountdown(ms){
   const secs = Math.max(0, Math.ceil(ms / 1000));
   const m = Math.floor(secs / 60);
@@ -67,62 +111,7 @@ function fmtCountdown(ms){
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-async function initSupabase(){
-  try{
-    if (!window.SUPABASE_CONFIG || !window.SUPABASE_CONFIG.url || !window.SUPABASE_CONFIG.anonKey || window.SUPABASE_CONFIG.url.startsWith("PASTE_")){
-      el("leaderboardModeText").textContent = "Using local device leaderboard only.";
-      el("leaderboardModeText").hidden = false;
-      renderBoard();
-      return;
-    }
-    supabaseClient = window.supabase.createClient(window.SUPABASE_CONFIG.url, window.SUPABASE_CONFIG.anonKey);
-    supabaseReady = true;
-    el("leaderboardModeText").textContent = "";
-    el("leaderboardModeText").hidden = true;
-    await fetchLeaderboard();
-    subscribeLeaderboard();
-  } catch (error){
-    console.error(error);
-    supabaseReady = false;
-    el("leaderboardModeText").textContent = "Using local device leaderboard only.";
-    el("leaderboardModeText").hidden = false;
-    renderBoard();
-  }
-}
-
-async function fetchLeaderboard(){
-  if (!supabaseReady) return;
-  const { data, error } = await supabaseClient.from("leaderboard").select("*");
-  if (error){
-    console.error(error);
-    supabaseReady = false;
-    el("leaderboardModeText").textContent = "Using local device leaderboard only.";
-    el("leaderboardModeText").hidden = false;
-    renderBoard();
-    return;
-  }
-  liveBoardCache = {};
-  (data || []).forEach(row => liveBoardCache[row.team_id] = row);
-  renderBoard();
-}
-function subscribeLeaderboard(){
-  if (!supabaseReady) return;
-  supabaseClient.channel("leaderboard-live")
-    .on("postgres_changes", { event: "*", schema: "public", table: "leaderboard" }, payload => {
-      const row = payload.new || payload.old;
-      if (!row || !row.team_id) return;
-      if (payload.eventType === "DELETE") delete liveBoardCache[row.team_id];
-      else liveBoardCache[row.team_id] = row;
-      renderBoard();
-    }).subscribe();
-}
-async function loadRemoteProgress(team){
-  if (!supabaseReady) return null;
-  const { data, error } = await supabaseClient.from("team_progress").select("*").eq("team_id", team).maybeSingle();
-  if (error){
-    console.error(error);
-    return null;
-  }
+function normalizeRemoteProgress(data){
   if (!data) return null;
   return {
     teamName: data.team_name,
@@ -136,22 +125,191 @@ async function loadRemoteProgress(team){
     lastUpdatedAt: data.last_updated_at
   };
 }
-async function getClaimedTeamName(team){
-  const remote = await loadRemoteProgress(team);
-  if (remote && remote.teamName && remote.teamName !== TEAMS[team].label) return remote.teamName;
-  const row = liveBoardCache[team];
-  if (row && row.team_name && row.team_name !== TEAMS[team].label) return row.team_name;
+
+function cachedRemoteProgress(team){
+  return liveProgressCache[team] ? { ...liveProgressCache[team] } : null;
+}
+
+function getCachedClaimedTeamName(team){
+  const remoteProgress = cachedRemoteProgress(team);
+  if (remoteProgress && remoteProgress.teamName && remoteProgress.teamName !== TEAMS[team].label) return remoteProgress.teamName;
+  const boardRow = liveBoardCache[team];
+  if (boardRow && boardRow.team_name && boardRow.team_name !== TEAMS[team].label) return boardRow.team_name;
   const local = loadLocalState(team);
   if (local && local.teamName && local.teamName !== TEAMS[team].label) return local.teamName;
   return null;
 }
+
+function updateSharedModeText(){
+  const mode = el("sharedModeText");
+  if (!mode) return;
+  if (supabaseReady){
+    mode.hidden = false;
+    mode.style.display = "block";
+    mode.textContent = "Shared progress is live across devices.";
+  } else {
+    mode.hidden = false;
+    mode.style.display = "block";
+    mode.textContent = "Cross-device sync needs Supabase configured in supabase-config.js.";
+  }
+}
+
+async function initSupabase(){
+  try{
+    if (!window.SUPABASE_CONFIG || !window.SUPABASE_CONFIG.url || !window.SUPABASE_CONFIG.anonKey || window.SUPABASE_CONFIG.url.startsWith("PASTE_")){
+      if (el("leaderboardModeText")){
+        el("leaderboardModeText").textContent = "Using local device leaderboard only.";
+        el("leaderboardModeText").hidden = false;
+        el("leaderboardModeText").style.display = "block";
+      }
+      updateSharedModeText();
+      renderBoard();
+      return;
+    }
+    supabaseClient = window.supabase.createClient(window.SUPABASE_CONFIG.url, window.SUPABASE_CONFIG.anonKey);
+    supabaseReady = true;
+    if (el("leaderboardModeText")){
+      el("leaderboardModeText").textContent = "";
+      el("leaderboardModeText").hidden = true;
+      el("leaderboardModeText").style.display = "none";
+    }
+    updateSharedModeText();
+    await Promise.all([fetchLeaderboard(), fetchAllRemoteProgress()]);
+    subscribeLeaderboard();
+    subscribeTeamProgress();
+  } catch (error){
+    console.error(error);
+    supabaseReady = false;
+    if (el("leaderboardModeText")){
+      el("leaderboardModeText").textContent = "Using local device leaderboard only.";
+      el("leaderboardModeText").hidden = false;
+      el("leaderboardModeText").style.display = "block";
+    }
+    updateSharedModeText();
+    renderBoard();
+  }
+}
+
+async function fetchLeaderboard(){
+  if (!supabaseReady) return;
+  const { data, error } = await supabaseClient.from("leaderboard").select("*");
+  if (error){
+    console.error(error);
+    supabaseReady = false;
+    if (el("leaderboardModeText")){
+      el("leaderboardModeText").textContent = "Using local device leaderboard only.";
+      el("leaderboardModeText").hidden = false;
+      el("leaderboardModeText").style.display = "block";
+    }
+    updateSharedModeText();
+    renderBoard();
+    return;
+  }
+  liveBoardCache = {};
+  (data || []).forEach(row => liveBoardCache[row.team_id] = row);
+  renderBoard();
+}
+
+async function fetchAllRemoteProgress(){
+  if (!supabaseReady) return;
+  const { data, error } = await supabaseClient.from("team_progress").select("*");
+  if (error){
+    console.error(error);
+    return;
+  }
+  liveProgressCache = {};
+  (data || []).forEach(row => {
+    const normalized = normalizeRemoteProgress(row);
+    liveProgressCache[row.team_id] = normalized;
+    localStorage.setItem(storageKey(row.team_id), JSON.stringify(normalized));
+  });
+}
+
+function subscribeLeaderboard(){
+  if (!supabaseReady) return;
+  supabaseClient.channel("leaderboard-live")
+    .on("postgres_changes", { event: "*", schema: "public", table: "leaderboard" }, payload => {
+      const row = payload.new || payload.old;
+      if (!row || !row.team_id) return;
+      if (payload.eventType === "DELETE") delete liveBoardCache[row.team_id];
+      else liveBoardCache[row.team_id] = row;
+      renderBoard();
+    }).subscribe();
+}
+
+function maybeRefreshGateSelection(){
+  if (!teamKey || !el("teamGate") || el("teamGate").classList.contains("hidden")) return;
+  const claimedName = getCachedClaimedTeamName(teamKey);
+  if (claimedName) setGateNameLock(true, claimedName);
+}
+
+function subscribeTeamProgress(){
+  if (!supabaseReady) return;
+  supabaseClient.channel("team-progress-live")
+    .on("postgres_changes", { event: "*", schema: "public", table: "team_progress" }, async payload => {
+      const row = payload.new || payload.old;
+      if (!row || !row.team_id) return;
+
+      if (payload.eventType === "DELETE") {
+        delete liveProgressCache[row.team_id];
+        localStorage.removeItem(storageKey(row.team_id));
+      } else {
+        const normalized = normalizeRemoteProgress(row);
+        liveProgressCache[row.team_id] = normalized;
+        localStorage.setItem(storageKey(row.team_id), JSON.stringify(normalized));
+
+        if (teamKey === row.team_id){
+          const incomingTs = toMillis(normalized.lastUpdatedAt);
+          const currentTs = toMillis(state?.lastUpdatedAt);
+          if (!state || incomingTs >= currentTs){
+            state = normalized;
+            await renderAll({ persist: false });
+          }
+        }
+      }
+
+      if (el("adminTeamSelect") && el("adminTeamSelect").value === row.team_id) {
+        await syncAdminFields();
+      }
+      maybeRefreshGateSelection();
+      renderBoard();
+    }).subscribe();
+}
+
+async function loadRemoteProgress(team){
+  if (!supabaseReady) return null;
+  const cached = cachedRemoteProgress(team);
+  if (cached) return cached;
+  const { data, error } = await supabaseClient.from("team_progress").select("*").eq("team_id", team).maybeSingle();
+  if (error){
+    console.error(error);
+    return null;
+  }
+  const normalized = normalizeRemoteProgress(data);
+  if (normalized) {
+    liveProgressCache[team] = normalized;
+    localStorage.setItem(storageKey(team), JSON.stringify(normalized));
+  }
+  return normalized;
+}
+
+async function getClaimedTeamName(team){
+  const cached = getCachedClaimedTeamName(team);
+  if (cached) return cached;
+  const remote = await loadRemoteProgress(team);
+  if (remote && remote.teamName && remote.teamName !== TEAMS[team].label) return remote.teamName;
+  return null;
+}
+
 function setGateNameLock(locked, value){
   const input = el("gateTeamName");
+  if (!input) return;
   input.value = value || "";
   input.readOnly = !!locked;
   input.disabled = !!locked;
   input.placeholder = locked ? "Team name already locked" : "Enter team name";
 }
+
 async function pushRemoteProgress(){
   if (!supabaseReady || !teamKey || !state) return;
   const payload = {
@@ -169,6 +327,7 @@ async function pushRemoteProgress(){
   const { error } = await supabaseClient.from("team_progress").upsert(payload, { onConflict: "team_id" });
   if (error) console.error(error);
 }
+
 async function pushLeaderboard(){
   saveLocalBoard();
   if (!supabaseReady || !teamKey || !state) return;
@@ -188,11 +347,11 @@ function setPage(pageId){
   const page = el(pageId);
   if (page) page.classList.add("activePage");
   document.querySelectorAll(".menuBtn").forEach(btn => btn.classList.toggle("active", btn.dataset.page === pageId));
-  if (pageId === "scanPage") initScanner();
 }
 
 function renderGateTeams(selected){
   const mount = el("gateTeamButtons");
+  if (!mount) return;
   mount.innerHTML = "";
   Object.entries(TEAMS).forEach(([key, team]) => {
     const btn = document.createElement("button");
@@ -203,8 +362,9 @@ function renderGateTeams(selected){
       teamKey = key;
       renderGateTeams(teamKey);
       const claimedName = await getClaimedTeamName(teamKey);
-      if (claimedName) setGateNameLock(true, claimedName);
-      else {
+      if (claimedName) {
+        setGateNameLock(true, claimedName);
+      } else {
         const local = loadLocalState(teamKey);
         setGateNameLock(false, (local && local.teamName && local.teamName !== team.label) ? local.teamName : "");
       }
@@ -219,10 +379,11 @@ function renderTop(){
   el("progressCount").textContent = `${state.completed.length} / ${total}`;
   el("progressBar").style.width = `${(state.completed.length / total) * 100}%`;
   el("hintCount").textContent = `${state.usedHints} / 3`;
-  const locked = state.nextHintAt && now < state.nextHintAt;
-  el("hintStatus").textContent = locked ? `Next hint in ${fmtCountdown(state.nextHintAt - now)}` : (state.usedHints >= 3 ? "No hints left" : "Hint ready");
+  const locked = state.nextHintAt && now < toMillis(state.nextHintAt);
+  el("hintStatus").textContent = locked ? `Next hint in ${fmtCountdown(toMillis(state.nextHintAt) - now)}` : (state.usedHints >= 3 ? "No hints left" : "Hint ready");
   el("teamDisplay").textContent = `${TEAMS[teamKey].label} • ${state.teamName}`;
 }
+
 function renderChores(){
   if (!teamKey || !state) return;
   const seq = TEAMS[teamKey].sequence;
@@ -242,6 +403,7 @@ function renderChores(){
     list.appendChild(div);
   });
 }
+
 function renderMap(){
   if (!teamKey || !state) return;
   const seq = TEAMS[teamKey].sequence;
@@ -259,21 +421,23 @@ function renderMap(){
     mapPins.appendChild(pin);
   });
 }
+
 function renderHint(){
   if (!teamKey || !state) return;
   const activeId = TEAMS[teamKey].sequence[state.progressIndex];
   const clue = CLUES[activeId];
-  const locked = state.nextHintAt && now < state.nextHintAt;
+  const locked = state.nextHintAt && now < toMillis(state.nextHintAt);
   el("hintBtn").disabled = state.usedHints >= 3 || locked || !clue;
   el("hintsLeft").textContent = `Hints left: ${3 - state.usedHints}`;
   el("hintBox").textContent = state.usedHints > 0 && clue ? clue.hint : "No hint displayed yet for this active clue.";
   if (locked){
     el("hintTimerPill").hidden = false;
-    el("hintTimerPill").textContent = fmtCountdown(state.nextHintAt - now);
+    el("hintTimerPill").textContent = fmtCountdown(toMillis(state.nextHintAt) - now);
   } else {
     el("hintTimerPill").hidden = true;
   }
 }
+
 function renderBoard(){
   const board = el("leaderboard");
   if (!board) return;
@@ -294,99 +458,85 @@ async function persistAll(){
     await pushLeaderboard();
   }
 }
-async function renderAll(){
+
+async function renderAll(options = {}){
+  const shouldPersist = options.persist !== false;
   renderTop();
   renderChores();
   renderMap();
   renderHint();
   renderBoard();
-  await persistAll();
-}
-async function unlockToken(token){
-  if (!teamKey || !state) return;
-  const seq = TEAMS[teamKey].sequence;
-  const expected = TOKENS[teamKey][state.progressIndex];
-  if (!expected){ setFeedback("This team has already finished every clue."); return; }
-  if (token.trim() !== expected){ setFeedback("That code does not match this team’s next egg."); return; }
-  const finishedStep = seq[state.progressIndex];
-  state.completed.push(finishedStep);
-  state.scannedTokens.push(token.trim());
-  state.progressIndex += 1;
-  state.finished = state.progressIndex >= seq.length || token.includes("FINISH");
-  state.lastUpdatedAt = Date.now();
-  setFeedback(state.finished ? "You finished the hunt. Happy Easter!" : "Great job. Your next chore is unlocked.");
-  await renderAll();
+  if (shouldPersist) await persistAll();
 }
 
-async function initScanner(forceRestart = false){
-  const scanMessage = el("scanMessage");
+async function unlockToken(token, options = {}){
+  const quiet = !!options.quiet;
+  if (!teamKey || !state) {
+    const message = "Pick a team first.";
+    if (!quiet) setFeedback(message);
+    return { status: "no-team", message };
+  }
+
+  const expected = TOKENS[teamKey][state.progressIndex];
+  if (!expected){
+    const message = "This team has already finished every clue.";
+    if (!quiet) setFeedback(message);
+    return { status: "finished", message };
+  }
+
+  if ((token || "").trim() !== expected){
+    const message = "Wrong QR code. Try again.";
+    if (!quiet) setFeedback(message);
+    return { status: "wrong", message };
+  }
+
+  const finishedStep = TEAMS[teamKey].sequence[state.progressIndex];
+  state.completed.push(finishedStep);
+  state.scannedTokens.push(expected);
+  state.progressIndex += 1;
+  state.finished = state.progressIndex >= TEAMS[teamKey].sequence.length || expected.includes("FINISH");
+  state.lastUpdatedAt = Date.now();
+  await renderAll();
+
+  const message = state.finished ? "That was the right QR code. You finished the hunt." : "That was the right QR code. Your next chore is unlocked.";
+  if (!quiet) setFeedback(message);
+  return { status: "correct", message };
+}
+
+function resetPhotoArea(){
   const reader = el("qr-reader");
-  if (!scanMessage || !reader) return;
+  if (!reader) return;
+  reader.innerHTML = '<div class="photoPlaceholder">No photo selected yet.</div>';
+  if (el("qrPhotoInput")) el("qrPhotoInput").value = "";
+}
+
+async function checkPhotoFile(file){
+  if (!file) return;
   if (typeof Html5Qrcode === "undefined"){
-    scanMessage.textContent = "QR scanner library did not load. Use manual code entry below.";
+    const message = "QR checker library did not load. Use manual code entry below.";
+    setScanMessage(message);
+    setFeedback(message);
+    setScanStatus("error", message);
     return;
   }
-  if (scannerStarting) return;
-  if (scannerStarted && !forceRestart) return;
 
-  scannerStarting = true;
-  scanMessage.textContent = "Starting camera… If prompted, allow camera access.";
-
-  try{
-    if (forceRestart && qrScanner){
-      try { if (qrScanner.isScanning) await qrScanner.stop(); } catch (e) {}
-      try { await qrScanner.clear(); } catch (e) {}
-      qrScanner = null;
-      scannerStarted = false;
-      reader.innerHTML = "";
-    }
-
-    if (!qrScanner) qrScanner = new Html5Qrcode("qr-reader");
-
-    const onScan = async decodedText => {
-      const nowMs = Date.now();
-      if (decodedText && (decodedText !== lastScanned || nowMs - lastScanAt > 2500)){
-        lastScanned = decodedText;
-        lastScanAt = nowMs;
-        await unlockToken(decodedText);
-      }
-    };
-
-    const config = {
-      fps: 10,
-      qrbox: { width: 280, height: 280 },
-      aspectRatio: 0.75,
-      rememberLastUsedCamera: true
-    };
-
-    try {
-      await qrScanner.start(
-        { facingMode: { exact: "environment" } },
-        config,
-        onScan,
-        () => {}
-      );
-    } catch (firstError) {
-      await qrScanner.start(
-        { facingMode: "environment" },
-        config,
-        onScan,
-        () => {}
-      );
-    }
-
-    scannerStarted = true;
-    scanMessage.textContent = "Camera is live. Point it at the egg QR code, or type the code manually below.";
+  setScanMessage("Checking photo...");
+  setScanStatus("checking", "Checking photo...");
+  try {
+    if (!fileQrScanner) fileQrScanner = new Html5Qrcode("qr-reader");
+    const decodedText = await fileQrScanner.scanFile(file, true);
+    const result = await unlockToken(decodedText, { quiet: true });
+    setScanMessage(result.message);
+    setFeedback(result.message);
+    setScanStatus(result.status, result.message);
   } catch (error){
     console.error(error);
-    scanMessage.textContent = "Camera could not start automatically. Tap Restart camera or use manual code entry below.";
-    scannerStarted = false;
-  } finally {
-    scannerStarting = false;
+    setScanMessage("No QR code detected. Try again.");
+    setFeedback("No QR code detected. Try again.");
+    setScanStatus("no-qr", "No QR code detected. Try again.");
   }
 }
 
-// Admin
 function showAdminOverlay(){ const o = el("adminOverlay"); if (o) o.classList.remove("hidden"); }
 function hideAdminOverlay(){ const o = el("adminOverlay"); if (o) o.classList.add("hidden"); }
 function showAdminPanel(){ populateAdminTeams(); syncAdminFields(); const p = el("adminPanel"); if (p) p.classList.remove("hidden"); }
@@ -400,6 +550,7 @@ function openAdminPrompt(){
 
 function populateAdminTeams(){
   const select = el("adminTeamSelect");
+  if (!select) return;
   const current = select.value || teamKey || "Team1";
   select.innerHTML = "";
   Object.entries(TEAMS).forEach(([key, team]) => {
@@ -410,74 +561,142 @@ function populateAdminTeams(){
     select.appendChild(opt);
   });
 }
+
 async function syncAdminFields(){
-  const team = el("adminTeamSelect").value;
+  const select = el("adminTeamSelect");
+  if (!select) return;
+  const team = select.value;
   const remote = await loadRemoteProgress(team);
   const local = loadLocalState(team);
   const name = remote?.teamName || local.teamName || TEAMS[team].label;
   el("adminTeamName").value = name;
 }
+
 async function adminSaveTeamName(){
   const team = el("adminTeamSelect").value;
   const newName = el("adminTeamName").value.trim();
-  if (!newName){ el("adminPanelFeedback").textContent = "Enter a team name first."; return; }
+  if (!newName){
+    el("adminPanelFeedback").textContent = "Enter a team name first.";
+    return;
+  }
+
   let targetState = await loadRemoteProgress(team) || loadLocalState(team);
   targetState.teamName = newName;
   targetState.lastUpdatedAt = Date.now();
+  liveProgressCache[team] = { ...targetState };
   localStorage.setItem(storageKey(team), JSON.stringify(targetState));
-  const localBoard = JSON.parse(localStorage.getItem(leaderboardKey()) || "{}");
+
+  const localBoard = readJson(leaderboardKey(), {});
   localBoard[team] = { teamName: newName, found: targetState.completed.length, finished: targetState.finished, lastUpdatedAt: targetState.lastUpdatedAt };
   localStorage.setItem(leaderboardKey(), JSON.stringify(localBoard));
+
   if (supabaseReady){
     await supabaseClient.from("team_progress").upsert({
-      team_id: team, team_name: newName, progress_index: targetState.progressIndex,
-      completed: targetState.completed, scanned_tokens: targetState.scannedTokens, used_hints: targetState.usedHints,
-      next_hint_at: targetState.nextHintAt, finished: targetState.finished, started_at: targetState.startedAt, last_updated_at: targetState.lastUpdatedAt
+      team_id: team,
+      team_name: newName,
+      progress_index: targetState.progressIndex,
+      completed: targetState.completed,
+      scanned_tokens: targetState.scannedTokens,
+      used_hints: targetState.usedHints,
+      next_hint_at: targetState.nextHintAt,
+      finished: targetState.finished,
+      started_at: targetState.startedAt,
+      last_updated_at: targetState.lastUpdatedAt
     }, { onConflict: "team_id" });
+
     await supabaseClient.from("leaderboard").upsert({
-      team_id: team, team_name: newName, found: targetState.completed.length, finished: targetState.finished, last_updated_at: targetState.lastUpdatedAt
+      team_id: team,
+      team_name: newName,
+      found: targetState.completed.length,
+      finished: targetState.finished,
+      last_updated_at: targetState.lastUpdatedAt
     }, { onConflict: "team_id" });
+
     liveBoardCache[team] = { team_id: team, team_name: newName, found: targetState.completed.length, finished: targetState.finished, last_updated_at: targetState.lastUpdatedAt };
   }
-  if (teamKey === team && state){ state.teamName = newName; renderTop(); }
-  renderBoard();
-  el("adminPanelFeedback").textContent = "Team name updated.";
+
+  if (teamKey === team && state){
+    state.teamName = newName;
+    await renderAll({ persist: false });
+  } else {
+    renderBoard();
+  }
+
+  maybeRefreshGateSelection();
+  el("adminPanelFeedback").textContent = supabaseReady ? "Team name updated everywhere." : "Team name updated on this device only.";
 }
+
 async function adminResetTeam(){
   const team = el("adminTeamSelect").value;
   const fresh = defaultState(TEAMS[team].label);
+  liveProgressCache[team] = { ...fresh };
   localStorage.setItem(storageKey(team), JSON.stringify(fresh));
-  const localBoard = JSON.parse(localStorage.getItem(leaderboardKey()) || "{}");
+
+  const localBoard = readJson(leaderboardKey(), {});
   localBoard[team] = { teamName: fresh.teamName, found: 0, finished: false, lastUpdatedAt: fresh.lastUpdatedAt };
   localStorage.setItem(leaderboardKey(), JSON.stringify(localBoard));
+
   if (supabaseReady){
     await supabaseClient.from("team_progress").upsert({
-      team_id: team, team_name: fresh.teamName, progress_index: 0, completed: [], scanned_tokens: [], used_hints: 0,
-      next_hint_at: null, finished: false, started_at: fresh.startedAt, last_updated_at: fresh.lastUpdatedAt
+      team_id: team,
+      team_name: fresh.teamName,
+      progress_index: 0,
+      completed: [],
+      scanned_tokens: [],
+      used_hints: 0,
+      next_hint_at: null,
+      finished: false,
+      started_at: fresh.startedAt,
+      last_updated_at: fresh.lastUpdatedAt
     }, { onConflict: "team_id" });
+
     await supabaseClient.from("leaderboard").upsert({
-      team_id: team, team_name: fresh.teamName, found: 0, finished: false, last_updated_at: fresh.lastUpdatedAt
+      team_id: team,
+      team_name: fresh.teamName,
+      found: 0,
+      finished: false,
+      last_updated_at: fresh.lastUpdatedAt
     }, { onConflict: "team_id" });
+
     liveBoardCache[team] = { team_id: team, team_name: fresh.teamName, found: 0, finished: false, last_updated_at: fresh.lastUpdatedAt };
   }
-  if (teamKey === team){ state = fresh; await renderAll(); } else renderBoard();
+
+  if (teamKey === team){
+    state = fresh;
+    await renderAll({ persist: false });
+  } else {
+    renderBoard();
+  }
+
   await syncAdminFields();
-  el("adminPanelFeedback").textContent = "Selected team reset.";
+  maybeRefreshGateSelection();
+  el("adminPanelFeedback").textContent = supabaseReady ? "Selected team reset everywhere." : "Selected team reset on this device only.";
 }
+
 async function adminReloadTeam(){
   const team = el("adminTeamSelect").value;
-  if (!supabaseReady){ el("adminPanelFeedback").textContent = "Supabase is not configured."; return; }
+  if (!supabaseReady){
+    el("adminPanelFeedback").textContent = "Supabase is not configured.";
+    return;
+  }
   const remote = await loadRemoteProgress(team);
-  if (!remote){ el("adminPanelFeedback").textContent = "No shared progress found for that team."; return; }
+  if (!remote){
+    el("adminPanelFeedback").textContent = "No shared progress found for that team.";
+    return;
+  }
   localStorage.setItem(storageKey(team), JSON.stringify(remote));
-  if (teamKey === team){ state = remote; renderTop(); renderChores(); renderMap(); renderHint(); renderBoard(); }
+  if (teamKey === team){
+    state = remote;
+    await renderAll({ persist: false });
+  }
   await syncAdminFields();
   el("adminPanelFeedback").textContent = "Selected team reloaded from shared progress.";
 }
+
 function wireAdminEvents(){
   const rabbit = el("rabbitTrigger");
   if (rabbit){
-    rabbit.onclick = (ev) => {
+    rabbit.onclick = ev => {
       ev.preventDefault();
       ev.stopPropagation();
       openAdminPrompt();
@@ -512,49 +731,84 @@ function wireAdminEvents(){
   if (el("adminReloadTeamBtn")) el("adminReloadTeamBtn").addEventListener("click", adminReloadTeam);
 }
 
+function wireScannerEvents(){
+  if (el("qrPhotoInput")) {
+    el("qrPhotoInput").addEventListener("change", async event => {
+      const file = event.target.files && event.target.files[0];
+      await checkPhotoFile(file);
+    });
+  }
+
+  if (el("clearPhotoBtn")) {
+    el("clearPhotoBtn").addEventListener("click", () => {
+      resetPhotoArea();
+      setScanMessage("Take a photo of the egg QR code or type the code manually.");
+      setScanStatus("idle", "Waiting for a photo or code.");
+    });
+  }
+
+  if (el("unlockBtn")) {
+    el("unlockBtn").addEventListener("click", async () => {
+      const val = el("manualCode").value.trim();
+      if (!val) return;
+      const result = await unlockToken(val, { quiet: true });
+      setScanMessage(result.message);
+      setFeedback(result.message);
+      setScanStatus(result.status, result.message);
+      el("manualCode").value = "";
+    });
+  }
+}
+
 document.querySelectorAll(".menuBtn").forEach(btn => btn.addEventListener("click", () => setPage(btn.dataset.page)));
-el("startGameBtn").addEventListener("click", async () => {
-  if (!teamKey){ setFeedback("Choose a team first."); return; }
-  const claimedName = await getClaimedTeamName(teamKey);
-  const enteredName = (el("gateTeamName").value || "").trim();
-  let loaded = loadLocalState(teamKey);
-  const remote = await loadRemoteProgress(teamKey);
-  if (remote) loaded = remote;
-  state = loaded;
-  state.teamName = claimedName || enteredName || state.teamName || TEAMS[teamKey].label;
-  state.lastUpdatedAt = Date.now();
-  el("teamGate").classList.add("hidden");
-  await renderAll();
-  await initScanner();
-});
-el("unlockBtn").addEventListener("click", async () => {
-  const val = el("manualCode").value.trim();
-  if (!val) return;
-  await unlockToken(val);
-  el("manualCode").value = "";
-});
-el("restartCameraBtn")?.addEventListener("click", async () => {
-  await initScanner(true);
-});
-el("hintBtn").addEventListener("click", async () => {
-  if (!state) return;
-  const locked = state.nextHintAt && now < state.nextHintAt;
-  if (state.usedHints >= 3 || locked) return;
-  state.usedHints += 1;
-  state.nextHintAt = state.usedHints >= 3 ? null : Date.now() + COOLDOWN_MINUTES * 60 * 1000;
-  state.lastUpdatedAt = Date.now();
-  await renderAll();
-});
+
+if (el("startGameBtn")) {
+  el("startGameBtn").addEventListener("click", async () => {
+    if (!teamKey){
+      setFeedback("Choose a team first.");
+      return;
+    }
+    const claimedName = await getClaimedTeamName(teamKey);
+    const enteredName = (el("gateTeamName").value || "").trim();
+    let loaded = loadLocalState(teamKey);
+    const remote = await loadRemoteProgress(teamKey);
+    if (remote) loaded = remote;
+    state = loaded;
+    state.teamName = claimedName || enteredName || state.teamName || TEAMS[teamKey].label;
+    state.lastUpdatedAt = Date.now();
+    el("teamGate").classList.add("hidden");
+    await renderAll();
+  });
+}
+
+if (el("hintBtn")) {
+  el("hintBtn").addEventListener("click", async () => {
+    if (!state) return;
+    const locked = state.nextHintAt && now < toMillis(state.nextHintAt);
+    if (state.usedHints >= 3 || locked) return;
+    state.usedHints += 1;
+    state.nextHintAt = state.usedHints >= 3 ? null : Date.now() + COOLDOWN_MINUTES * 60 * 1000;
+    state.lastUpdatedAt = Date.now();
+    await renderAll();
+  });
+}
 
 (async function boot(){
   await initSupabase();
   renderGateTeams(null);
   setGateNameLock(false, "");
   renderBoard();
+  updateSharedModeText();
+  resetPhotoArea();
+  setScanStatus("idle", "Waiting for a photo or code.");
   setPage("choresPage");
   wireAdminEvents();
+  wireScannerEvents();
   setInterval(() => {
     now = Date.now();
-    if (state){ renderTop(); renderHint(); }
+    if (state){
+      renderTop();
+      renderHint();
+    }
   }, 1000);
 })();
