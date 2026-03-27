@@ -11,7 +11,7 @@
     <div class="gateCard">
       <div class="badge big-badge">🐣 Pick your team</div>
       <h1 class="gateTitle">Welcome to the Easter Chore Hunt</h1>
-      <p class="gateCopy">Choose your team, give it a name, and start the hunt.</p>
+      <p class="gateCopy">Choose your team and start the hunt. If a team name has already been claimed, it will be locked.</p>
       <div class="teamButtons gateTeams" id="gateTeamButtons"></div>
       <div class="spacer"></div>
       <input id="gateTeamName" placeholder="Enter team name">
@@ -22,7 +22,7 @@
 
   <header class="topbar">
     <div class="topbar-inner">
-      <div class="brand">🐰 Easter Chore Hunt</div>
+      <div class="brand" id="brandTrigger">🐰 Easter Chore Hunt</div>
       <nav class="menu">
         <button class="menuBtn active" data-page="choresPage">Chores</button>
         <button class="menuBtn" data-page="mapPage">Map</button>
@@ -65,7 +65,7 @@
         <div class="grid">
           <div class="card panel">
             <h2>Scan next egg</h2>
-            <div class="muted" id="scanMessage">Use your camera to scan the egg QR code, or type the code manually.</div>
+            <div class="muted" id="scanMessage">Use your camera to scan the egg QR code, upload a QR image, or type the code manually.</div>
             <div class="videoBox" id="videoBox"><div id="qr-reader" class="qrReader"></div></div>
             <input id="manualCode" placeholder="Paste or type QR code value">
             <button class="primary" id="unlockBtn">Unlock</button>
@@ -113,17 +113,13 @@
       <div class="grid main">
         <div class="card panel">
           <h2>Leaderboard</h2>
-          <p id="leaderboardModeText">Connecting to Supabase leaderboard…</p>
+          <p id="leaderboardModeText">Trying to connect to Supabase…</p>
           <div class="leader" id="leaderboard"></div>
         </div>
         <div class="card panel">
-          <h2>Team settings</h2>
-          <p>Rename your current team, reload shared progress, or reset progress for this team.</p>
-          <input id="teamName" placeholder="Team name">
-          <button class="primary" id="saveNameBtn">Save team name</button>
-          <button id="reloadBtn">Reload shared progress</button>
-          <button id="resetBtn">Reset this team</button>
-          <div class="warn">This version stores both the leaderboard and full team progress in Supabase so a team can switch devices.</div>
+          <h2>Team access</h2>
+          <p>Team names are locked after the first person claims them. Team progress can still be reloaded automatically when a team joins on another device.</p>
+          <div class="warn">Players cannot edit team settings in this version.</div>
         </div>
       </div>
     </section>
@@ -134,5 +130,39 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <script src="script.js"></script>
+
+  <div id="adminOverlay" class="gateOverlay hidden">
+    <div class="gateCard">
+      <div class="badge big-badge">🥚 Admin access</div>
+      <h1 class="gateTitle">Admin controls</h1>
+      <p class="gateCopy">Enter the admin passcode to unlock management tools.</p>
+      <input id="adminPasscode" placeholder="Enter admin passcode">
+      <div class="spacer"></div>
+      <button class="primary full" id="adminUnlockBtn">Unlock admin</button>
+      <div class="spacer"></div>
+      <button class="full" id="adminCancelBtn">Cancel</button>
+      <div class="spacer"></div>
+      <div class="warn" id="adminFeedback">Admin tools are hidden from players.</div>
+    </div>
+  </div>
+
+  <div id="adminPanel" class="gateOverlay hidden">
+    <div class="gateCard">
+      <div class="badge big-badge">🛠️ Admin tools</div>
+      <h1 class="gateTitle">Manage teams</h1>
+      <p class="gateCopy">These controls are hidden from players.</p>
+      <div class="panel">
+        <select id="adminTeamSelect"></select>
+        <input id="adminTeamName" placeholder="Admin set team name">
+        <button class="primary full" id="adminSaveNameBtn">Save team name</button>
+        <button class="full" id="adminReloadTeamBtn">Reload team progress</button>
+        <button class="full" id="adminResetTeamBtn">Reset selected team</button>
+        <button class="full" id="adminCloseBtn">Close admin</button>
+      </div>
+      <div class="spacer"></div>
+      <div class="note" id="adminPanelFeedback">Choose a team to manage.</div>
+    </div>
+  </div>
+
 </body>
 </html>

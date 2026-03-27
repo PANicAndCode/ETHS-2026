@@ -62,24 +62,17 @@ input{border:1px solid #e4d5c4;width:100%;background:white}
 .hidden{display:none !important} code{background:#fff3e8;padding:2px 6px;border-radius:8px}
 @media (max-width:900px){.main{grid-template-columns:1fr}h1{font-size:30px}.gateTitle{font-size:28px}}
 
+.qrReader{width:100%}
+.qrReader video{border-radius:16px}
+#qr-reader{background:#fff; padding:8px; border-radius:16px}
+#qr-reader__scan_region img{max-width:220px; margin:auto}
+#qr-reader__dashboard{padding-top:8px}
+#qr-reader button,
+#qr-reader select,
+#qr-reader input{
+  font:inherit !important;
+  border-radius:12px !important;
+}
 
-.qrReader{
-  width:100%;
-}
-.qrReader video{
-  border-radius:16px;
-}
-.qrReader__dashboard_section_csr button,
-.qrReader button{
-  border-radius:12px !important;
-  border:1px solid #e8d7c3 !important;
-  background:white !important;
-  color:var(--text) !important;
-  padding:10px 12px !important;
-}
-.qrReader__camera_selection{
-  border-radius:12px !important;
-  padding:10px 12px !important;
-  border:1px solid #e4d5c4 !important;
-  background:white !important;
-}
+#brandTrigger{cursor:pointer;user-select:none}
+select{font:inherit;border-radius:16px;padding:12px 14px;border:1px solid #e4d5c4;width:100%;background:white}
