@@ -107,6 +107,11 @@ function isReadyForVictory(targetState, team = teamKey){
   return !!targetState && !targetState.finished && targetState.progressIndex >= teamTotal(team);
 }
 
+function isOnFinalClue(targetState, team = teamKey){
+  if (!targetState || targetState.finished) return false;
+  return targetState.progressIndex === Math.max(0, teamTotal(team) - 1);
+}
+
 function ordinalWord(place){
   return ["zeroth", "first", "second", "third", "fourth", "fifth"][place] || `${place}th`;
 }
@@ -153,8 +158,7 @@ function finalEggInfo(){
 }
 
 function finalEggReadyMessage(){
-  const finalEgg = finalEggInfo();
-  return `That was the right QR code. Final egg clue unlocked: head to ${finalEgg.location}. ${finalEgg.hint} When your team has the final egg, tap I found the final egg!`;
+  return "That was the right QR code. You finished the last QR step. If your team has the final egg, tap I found the final egg! to lock in your placement, see your prize, and reveal where the final egg was hidden.";
 }
 
 function setFeedback(msg){ if (el("feedbackBox")) el("feedbackBox").textContent = msg; }
@@ -635,13 +639,11 @@ function renderFinalEggCard(){
     return;
   }
 
-  const finalEgg = finalEggInfo();
-
   if (isReadyForVictory(state, teamKey)){
     card.classList.remove("hidden");
     badge.textContent = "🥚 Final egg ready";
-    title.textContent = "You unlocked the final egg step!";
-    copy.textContent = "When your team has the final egg, tap the button below to lock in your placement and reveal the final egg location.";
+    title.textContent = "Think you found the final egg?";
+    copy.textContent = "Tap I found the final egg! only when your team really has it. That button locks in your placement, tells you how much money you won, and then reveals where the final egg was hidden.";
     claimBtn.classList.remove("hidden");
     viewBtn.classList.add("hidden");
     return;
@@ -656,6 +658,16 @@ function renderFinalEggCard(){
     copy.textContent = `Get ${prizeText} from Ma. Your placement is locked in and the leaderboard has been updated.`;
     claimBtn.classList.add("hidden");
     viewBtn.classList.remove("hidden");
+    return;
+  }
+
+  if (isOnFinalClue(state, teamKey)){
+    card.classList.remove("hidden");
+    badge.textContent = "🥚 Final egg button unlocked";
+    title.textContent = "This button is for the final egg.";
+    copy.textContent = "Once your team really finds the final egg after Help Ma pick some apples, tap I found the final egg! It will lock in your placement, show how much money you won, and reveal where the final egg was hidden. Do not tap it early.";
+    claimBtn.classList.remove("hidden");
+    viewBtn.classList.add("hidden");
     return;
   }
 
@@ -688,7 +700,11 @@ async function claimVictory(){
     return;
   }
   if (!isReadyForVictory(state, teamKey)){
-    setFeedback("Find the final egg before you claim it.");
+    if (isOnFinalClue(state, teamKey)) {
+      setFeedback("This button is for after your team really has the final egg. Finish Help Ma pick some apples, then tap it to lock in your placement.");
+    } else {
+      setFeedback("Find the final egg before you claim it.");
+    }
     return;
   }
 
