@@ -567,9 +567,9 @@ async function startCamera(){
     setScanStatus("idle", "Camera ready. Take a picture.");
   } catch (error){
     console.error(error);
-    showPhotoPlaceholder("Could not open the camera. You can still choose a photo instead.");
-    setScanMessage("Could not open the camera. Choose a photo instead.");
-    setScanStatus("error", "Camera access failed. Choose a photo instead.");
+    showPhotoPlaceholder("Could not open the camera. Use Retake to try again.");
+    setScanMessage("Could not open the camera. Use Retake to try again.");
+    setScanStatus("error", "Camera access failed. Use Retake to try again.");
   }
 }
 
@@ -595,12 +595,12 @@ function resetPhotoArea(options = {}){
     canvas.classList.add("hidden");
   }
   capturedCanvas = null;
-  if (el("qrPhotoInput")) el("qrPhotoInput").value = "";
-  showPhotoPlaceholder("Camera is off. Open the camera or choose a photo.");
+  
+  showPhotoPlaceholder("Camera will start automatically on this page.");
   stopCamera();
   if (!keepStatus){
-    setScanMessage("Take a picture of the egg QR code, then check it.");
-    setScanStatus("idle", "Waiting for a picture or code.");
+    setScanMessage("Line up the QR code in the camera and take a picture.");
+    setScanStatus("idle", "Camera will open automatically.");
   }
 }
 
@@ -1037,10 +1037,6 @@ function wireAdminEvents(){
 }
 
 function wireScannerEvents(){
-  if (el("startCameraBtn")) {
-    el("startCameraBtn").addEventListener("click", startCamera);
-  }
-
   if (el("takePhotoBtn")) {
     el("takePhotoBtn").addEventListener("click", captureAndCheckPhoto);
   }
@@ -1052,35 +1048,8 @@ function wireScannerEvents(){
     });
   }
 
-  if (el("checkPhotoBtn")) {
-    el("checkPhotoBtn").addEventListener("click", async () => {
-      const canvas = capturedCanvas || el("qrCanvas");
-      if (canvas && !canvas.classList.contains("hidden")) {
-        await analyzeCanvas(capturedCanvas || canvas);
-        return;
-      }
-      const file = el("qrPhotoInput")?.files?.[0];
-      if (file) {
-        await checkPhotoFile(file);
-        return;
-      }
-      setScanMessage("Take or choose a picture first.");
-      setScanStatus("error", "Take or choose a picture first.");
-    });
-  }
 
-  if (el("qrPhotoInput")) {
-    el("qrPhotoInput").addEventListener("change", async event => {
-      const file = event.target.files && event.target.files[0];
-      await checkPhotoFile(file);
-    });
-  }
 
-  if (el("clearPhotoBtn")) {
-    el("clearPhotoBtn").addEventListener("click", () => {
-      resetPhotoArea();
-    });
-  }
 
   if (el("unlockBtn")) {
     el("unlockBtn").addEventListener("click", async () => {
@@ -1141,7 +1110,7 @@ window.addEventListener("beforeunload", stopCamera);
   renderBoard();
   updateSharedModeText();
   resetPhotoArea();
-  setScanStatus("idle", "Waiting for a photo or code.");
+  setScanStatus("idle", "Camera will open automatically.");
   setPage("choresPage");
   wireAdminEvents();
   wireScannerEvents();
