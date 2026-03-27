@@ -109,3 +109,6 @@ input,select{border:1px solid #e4d5c4;width:100%;background:white}
   .finalEggActions{justify-content:stretch}.finalEggBtn{width:100%;min-width:0}
   .victoryRank{font-size:34px}
 }
+
+.mapDisabledNote{padding:14px 16px;border-radius:18px;background:#fff6de;border:1px solid #ffd890;color:#8a5700;margin-bottom:12px}
+.mapPageLeaderboardOnly{grid-template-columns:1fr!important}

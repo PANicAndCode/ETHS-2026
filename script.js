@@ -3,6 +3,8 @@ const FINAL_EGG_WAIT_MS = 1 * 60 * 1000;
 const FINAL_WAIT_MARKER_PREFIX = "__FINAL_WAIT_STARTED__:";
 const STORAGE_PREFIX = "easter-hunt-supabase-progress-v3";
 const ADMIN_PASSCODE = "bunnyboss";
+const MAP_ENABLED_KEY = `${STORAGE_PREFIX}-map-enabled`;
+const SHARED_SETTINGS_TEAM_ID = "__settings__";
 
 let teamKey = null;
 let state = null;
@@ -14,6 +16,7 @@ let liveProgressCache = {};
 let fileQrScanner = null;
 let cameraStream = null;
 let capturedCanvas = null;
+let mapEnabled = localMapEnabled();
 
 function el(id){ return document.getElementById(id); }
 function storageKey(team){ return `${STORAGE_PREFIX}-${team}`; }
@@ -23,6 +26,63 @@ function toMillis(value){
   if (typeof value === "number") return value;
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+
+function localMapEnabled(){
+  const raw = localStorage.getItem(MAP_ENABLED_KEY);
+  return raw === null ? true : raw === "true";
+}
+
+function setLocalMapEnabled(value){
+  mapEnabled = !!value;
+  localStorage.setItem(MAP_ENABLED_KEY, String(mapEnabled));
+}
+
+function sharedSettingsState(){
+  const remote = liveProgressCache[SHARED_SETTINGS_TEAM_ID];
+  if (remote && typeof remote.mapEnabled === "boolean") return remote;
+  return { mapEnabled: localMapEnabled() };
+}
+
+function isMapEnabled(){
+  const shared = sharedSettingsState();
+  return typeof shared.mapEnabled === "boolean" ? shared.mapEnabled : true;
+}
+
+async function pushSharedSettings(){
+  if (!supabaseReady) return;
+  const payload = {
+    team_id: SHARED_SETTINGS_TEAM_ID,
+    team_name: "Shared Settings",
+    progress_index: 0,
+    completed: [],
+    scanned_tokens: [],
+    used_hints: 0,
+    next_hint_at: null,
+    finished: false,
+    started_at: Date.now(),
+    last_updated_at: Date.now(),
+    map_enabled: !!mapEnabled
+  };
+  await supabaseClient.from("team_progress").upsert(payload, { onConflict: "team_id" });
+}
+
+function updateAdminMapButton(){
+  const btn = el("adminToggleMapBtn");
+  if (!btn) return;
+  btn.textContent = isMapEnabled() ? "Turn map off for everyone" : "Turn map on for everyone";
+}
+
+function applyMapVisibility(){
+  const enabled = isMapEnabled();
+  const mapCard = el("mapCard");
+  const grid = el("mapPageGrid");
+  const navBtn = document.querySelector('.menuBtn[data-page="mapPage"]');
+  if (mapCard) mapCard.classList.toggle("hidden", !enabled);
+  if (grid) grid.classList.toggle("mapPageLeaderboardOnly", !enabled);
+  if (navBtn) navBtn.textContent = enabled ? "Map & Leaderboard" : "Leaderboard";
+  updateAdminMapButton();
 }
 
 function defaultState(teamLabel){
@@ -231,7 +291,8 @@ function normalizeRemoteProgress(data){
     nextHintAt: data.next_hint_at,
     finished: !!data.finished,
     startedAt: data.started_at,
-    lastUpdatedAt: data.last_updated_at
+    lastUpdatedAt: data.last_updated_at,
+    mapEnabled: typeof data.map_enabled === "boolean" ? data.map_enabled : undefined
   };
 }
 
@@ -524,9 +585,12 @@ function renderChores(){
 }
 
 function renderMap(){
+  applyMapVisibility();
+  if (!isMapEnabled()) return;
   if (!teamKey || !state) return;
   const seq = TEAMS[teamKey].sequence;
   const mapPins = el("mapPins");
+  if (!mapPins) return;
   mapPins.innerHTML = "";
   seq.forEach((id, idx) => {
     if (idx >= state.progressIndex) return;
@@ -592,6 +656,7 @@ async function persistAll(){
 
 async function renderAll(options = {}){
   const shouldPersist = options.persist !== false;
+  applyMapVisibility();
   renderTop();
   renderChores();
   renderMap();
@@ -1094,7 +1159,7 @@ async function checkPhotoFile(file){
 }
 function showAdminOverlay(){ const o = el("adminOverlay"); if (o) o.classList.remove("hidden"); }
 function hideAdminOverlay(){ const o = el("adminOverlay"); if (o) o.classList.add("hidden"); }
-function showAdminPanel(){ populateAdminTeams(); syncAdminFields(); const p = el("adminPanel"); if (p) p.classList.remove("hidden"); }
+function showAdminPanel(){ populateAdminTeams(); syncAdminFields(); applyMapVisibility(); const p = el("adminPanel"); if (p) p.classList.remove("hidden"); }
 function hideAdminPanel(){ const p = el("adminPanel"); if (p) p.classList.add("hidden"); }
 function openAdminPrompt(){
   hideAdminPanel();
@@ -1314,6 +1379,18 @@ async function adminGrantNext(){
   }
 }
 
+
+async function adminToggleMap(){
+  const nextValue = !isMapEnabled();
+  setLocalMapEnabled(nextValue);
+  applyMapVisibility();
+  if (supabaseReady) await pushSharedSettings();
+  await renderAll({ persist: false });
+  el("adminPanelFeedback").textContent = supabaseReady
+    ? `Map turned ${nextValue ? "on" : "off"} for everyone.`
+    : `Map turned ${nextValue ? "on" : "off"} on this device only.`;
+}
+
 async function adminReloadTeam(){
   const team = el("adminTeamSelect").value;
   if (!supabaseReady){
@@ -1369,6 +1446,7 @@ function wireAdminEvents(){
   if (el("adminTeamSelect")) el("adminTeamSelect").addEventListener("change", syncAdminFields);
   if (el("adminSaveNameBtn")) el("adminSaveNameBtn").addEventListener("click", adminSaveTeamName);
   if (el("adminGrantNextBtn")) el("adminGrantNextBtn").addEventListener("click", adminGrantNext);
+  if (el("adminToggleMapBtn")) el("adminToggleMapBtn").addEventListener("click", adminToggleMap);
   if (el("adminResetTeamBtn")) el("adminResetTeamBtn").addEventListener("click", adminResetTeam);
   if (el("adminReloadTeamBtn")) el("adminReloadTeamBtn").addEventListener("click", adminReloadTeam);
   if (el("victoryCloseX")) el("victoryCloseX").addEventListener("click", hideVictoryOverlay);
@@ -1411,6 +1489,7 @@ function wireScannerEvents(){
 }
 
 document.querySelectorAll(".menuBtn").forEach(btn => btn.addEventListener("click", () => setPage(btn.dataset.page)));
+applyMapVisibility();
 
 if (el("startGameBtn")) {
   el("startGameBtn").addEventListener("click", async () => {
