@@ -7,12 +7,12 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div id="teamGate" class="gateOverlay">
+  <div id="teamGate" class="overlay">
     <div class="gateCard">
-      <div class="badge big-badge">🐣 Pick your team</div>
+      <div class="badge bigBadge">🐣 Pick your team</div>
       <h1 class="gateTitle">Welcome to the Easter Chore Hunt</h1>
       <p class="gateCopy">Choose your team and start the hunt. If a team name has already been claimed, it will be locked.</p>
-      <div class="teamButtons gateTeams" id="gateTeamButtons"></div>
+      <div class="teamButtons" id="gateTeamButtons"></div>
       <div class="spacer"></div>
       <input id="gateTeamName" placeholder="Enter team name">
       <div class="spacer"></div>
@@ -20,8 +20,40 @@
     </div>
   </div>
 
+  <div id="adminOverlay" class="overlay hidden">
+    <div class="gateCard adminCard">
+      <button id="adminCloseX" class="adminCloseX" aria-label="Close">×</button>
+      <div class="badge bigBadge">🥚 Admin access</div>
+      <h1 class="gateTitle">Admin controls</h1>
+      <p class="gateCopy">Enter the admin passcode to unlock management tools.</p>
+      <input id="adminPasscode" placeholder="Enter admin passcode">
+      <div class="spacer"></div>
+      <button class="primary full" id="adminUnlockBtn">Unlock admin</button>
+      <div class="spacer"></div>
+      <div class="warn" id="adminFeedback">Admin tools are hidden from players.</div>
+    </div>
+  </div>
+
+  <div id="adminPanel" class="overlay hidden">
+    <div class="gateCard">
+      <button id="adminPanelCloseX" class="adminCloseX" aria-label="Close">×</button>
+      <div class="badge bigBadge">🛠️ Admin tools</div>
+      <h1 class="gateTitle">Manage teams</h1>
+      <p class="gateCopy">These controls are hidden from players.</p>
+      <div class="panel">
+        <select id="adminTeamSelect"></select>
+        <input id="adminTeamName" placeholder="Admin set team name">
+        <button class="primary full" id="adminSaveNameBtn">Save team name</button>
+        <button class="full" id="adminReloadTeamBtn">Reload team progress</button>
+        <button class="full" id="adminResetTeamBtn">Reset selected team</button>
+      </div>
+      <div class="spacer"></div>
+      <div class="note" id="adminPanelFeedback">Choose a team to manage.</div>
+    </div>
+  </div>
+
   <header class="topbar">
-    <div class="topbar-inner">
+    <div class="topbarInner">
       <div class="brand"><button id="rabbitTrigger" class="rabbitBtn" aria-label="Admin access">🐰</button><span>Easter Chore Hunt</span></div>
       <nav class="menu">
         <button class="menuBtn active" data-page="choresPage">Chores</button>
@@ -31,18 +63,18 @@
     </div>
   </header>
 
-  <main class="container grid appShell">
+  <main class="container">
     <section class="hero card">
       <div class="badge">🌷 Easter adventure</div>
       <h1>Find eggs. Unlock chores. Beat the other teams.</h1>
       <p>Your first chore appears right away. Each egg unlocks only the next chore for your team.</p>
       <div class="kpis">
-        <div class="kpi kpi-green">
+        <div class="kpi kpiGreen">
           <div class="small">Progress</div>
           <strong id="progressCount">0 / 11</strong>
           <div class="progress"><div id="progressBar" style="width:0%"></div></div>
         </div>
-        <div class="kpi kpi-amber">
+        <div class="kpi kpiAmber">
           <div class="small">Hints used</div>
           <strong id="hintCount">0 / 3</strong>
           <div class="muted" id="hintStatus">Hint ready</div>
@@ -51,27 +83,18 @@
     </section>
 
     <section id="choresPage" class="page activePage">
-      <div class="grid main">
-        <div class="grid">
-          <div class="card">
-            <div class="sectionTitleRow">
-              <h2>Chore list</h2>
-              <div class="teamPill" id="teamDisplay"></div>
-            </div>
-            <p>Locations stay hidden for the current chore. Completed chores reveal where that stop was found.</p>
-            <div class="list" id="choreList"></div>
+      <div class="mainGrid">
+        <div class="card">
+          <div class="sectionTitleRow">
+            <h2>Chore list</h2>
+            <div class="teamPill" id="teamDisplay"></div>
           </div>
+          <p>Locations stay hidden for the current chore. Completed chores reveal where that stop was found.</p>
+          <div class="list" id="choreList"></div>
         </div>
-        <div class="grid">
+        <div class="sideCol">
           <div class="card panel">
-            <h2>Scan next egg</h2>
-            <div class="muted" id="scanMessage">Use your camera to scan the egg QR code, upload a QR image, or type the code manually.</div>
-            <div class="videoBox" id="videoBox"><div id="qr-reader" class="qrReader"></div></div>
-            <input id="manualCode" placeholder="Paste or type QR code value">
-            <button class="primary" id="unlockBtn">Unlock</button>
-          </div>
-          <div class="card panel">
-            <div class="hintHeader">
+            <div class="sectionTitleRow">
               <h2>Hint station</h2>
               <div class="hintActionRow">
                 <button class="amber" id="hintBtn">Use hint</button>
@@ -86,8 +109,20 @@
       </div>
     </section>
 
+    <section id="scanPage" class="page">
+      <div class="scanWrap">
+        <div class="card panel scanCard">
+          <h2>Scan next egg</h2>
+          <div class="muted" id="scanMessage">Use your camera to scan the egg QR code, upload a QR image, or type the code manually.</div>
+          <div class="videoBox largeVideoBox"><div id="qr-reader" class="qrReader"></div></div>
+          <input id="manualCode" placeholder="Paste or type QR code value">
+          <button class="primary" id="unlockBtn">Unlock</button>
+        </div>
+      </div>
+    </section>
+
     <section id="mapPage" class="page">
-      <div class="grid main">
+      <div class="mainGrid">
         <div class="card">
           <h2>Map view</h2>
           <p>The current stop stays hidden. Completed stops appear on the map after the next scan.</p>
@@ -97,26 +132,11 @@
           </div>
         </div>
         <div class="card panel">
-          <h2>How the map works</h2>
-          <div class="muted">The map uses your <code>property-map.png</code> image as the background and places clue markers using percentage coordinates from <code>config.js</code>.</div>
-          <ul class="helpList">
-            <li>Replace <code>property-map.png</code> with your final clean map image.</li>
-            <li>Edit each clue’s <code>zone.x</code> and <code>zone.y</code> values in <code>config.js</code>.</li>
-            <li>Values are percentages of the image width and height.</li>
-            <li>Refresh the page after each change to check placement.</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <section id="leaderboardPage" class="page">
-      <div class="grid main">
-        <div class="card panel">
           <h2>Leaderboard</h2>
           <p id="leaderboardModeText">Trying to connect to Supabase…</p>
           <div class="leader" id="leaderboard"></div>
         </div>
-        </div>
+      </div>
     </section>
   </main>
 
@@ -125,38 +145,5 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <script src="script.js"></script>
-
-  <div id="adminOverlay" class="gateOverlay hidden">
-    <div class="gateCard adminCard">
-      <button id="adminCloseX" class="adminCloseX" aria-label="Close">×</button>
-      <div class="badge big-badge">🥚 Admin access</div>
-      <h1 class="gateTitle">Admin controls</h1>
-      <p class="gateCopy">Enter the admin passcode to unlock management tools.</p>
-      <input id="adminPasscode" placeholder="Enter admin passcode">
-      <div class="spacer"></div>
-      <button class="primary full" id="adminUnlockBtn">Unlock admin</button>
-      <div class="spacer"></div>
-      <div class="warn" id="adminFeedback">Admin tools are hidden from players.</div>
-    </div>
-  </div>
-
-  <div id="adminPanel" class="gateOverlay hidden">
-    <div class="gateCard">
-      <div class="badge big-badge">🛠️ Admin tools</div>
-      <h1 class="gateTitle">Manage teams</h1>
-      <p class="gateCopy">These controls are hidden from players.</p>
-      <div class="panel">
-        <select id="adminTeamSelect"></select>
-        <input id="adminTeamName" placeholder="Admin set team name">
-        <button class="primary full" id="adminSaveNameBtn">Save team name</button>
-        <button class="full" id="adminReloadTeamBtn">Reload team progress</button>
-        <button class="full" id="adminResetTeamBtn">Reset selected team</button>
-        <button class="full" id="adminCloseBtn">Close admin</button>
-      </div>
-      <div class="spacer"></div>
-      <div class="note" id="adminPanelFeedback">Choose a team to manage.</div>
-    </div>
-  </div>
-
 </body>
 </html>
