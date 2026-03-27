@@ -529,14 +529,13 @@ function renderMap(){
   const mapPins = el("mapPins");
   mapPins.innerHTML = "";
   seq.forEach((id, idx) => {
-    if (idx > state.progressIndex) return;
+    if (idx >= state.progressIndex) return;
     const clue = CLUES[id];
-    const shown = idx < state.progressIndex;
     const pin = document.createElement("div");
-    pin.className = shown ? "pin complete" : "pin";
+    pin.className = "pin complete";
     pin.style.left = `${clue.zone.x}%`;
     pin.style.top = `${clue.zone.y}%`;
-    pin.textContent = shown ? clue.location : "Current area hidden";
+    pin.textContent = clue.location;
     mapPins.appendChild(pin);
   });
 }
