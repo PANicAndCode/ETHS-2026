@@ -639,9 +639,9 @@ function renderFinalEggCard(){
 
   if (isReadyForVictory(state, teamKey)){
     card.classList.remove("hidden");
-    badge.textContent = "🥚 Final egg clue";
-    title.textContent = "Find the last egg!";
-    copy.textContent = `${finalEgg.hint} When your team has the final egg, tap the button below to lock in your placement.`;
+    badge.textContent = "🥚 Final egg ready";
+    title.textContent = "You unlocked the final egg step!";
+    copy.textContent = "When your team has the final egg, tap the button below to lock in your placement and reveal the final egg location.";
     claimBtn.classList.remove("hidden");
     viewBtn.classList.add("hidden");
     return;
@@ -675,8 +675,8 @@ function showVictoryOverlay(){
   if (el("victoryPlacement")) el("victoryPlacement").textContent = `Your team came in ${placementLabel(place)} and won ${prizeText}.`;
   if (el("victoryRankWord")) el("victoryRankWord").textContent = placementLabel(place).replace(/^./, char => char.toUpperCase());
   if (el("victoryMeta")) el("victoryMeta").textContent = place <= 3
-    ? `You won ${prizeText}. Get it from Ma. The leaderboard has been updated and your team earned the ${place === 1 ? "gold" : place === 2 ? "silver" : "bronze"} trophy.`
-    : `You won ${prizeText}. Get it from Ma. The leaderboard has been updated with your final placement.`;
+    ? `You won ${prizeText}. Get it from Ma. The final egg was at ${finalEggInfo().location}. The leaderboard has been updated and your team earned the ${place === 1 ? "gold" : place === 2 ? "silver" : "bronze"} trophy.`
+    : `You won ${prizeText}. Get it from Ma. The final egg was at ${finalEggInfo().location}. The leaderboard has been updated with your final placement.`;
   const overlay = el("victoryOverlay");
   if (overlay) overlay.classList.remove("hidden");
 }
@@ -1247,7 +1247,7 @@ async function adminGrantNext(){
     const place = finishPlacementForTeam(team) || finishedPlacementRows().length;
     el("adminPanelFeedback").textContent = `${TEAMS[team].label} finished the hunt in ${placementLabel(place)} and won ${placementPrizeText(place)}.`;
   } else if (result.status === "ready-final-egg") {
-    el("adminPanelFeedback").textContent = `Granted ${TEAMS[team].label} the final egg message. They can now go find the final egg and tap I found the final egg!`;
+    el("adminPanelFeedback").textContent = `Granted ${TEAMS[team].label} the final egg step. The location stays hidden until they tap I found the final egg!`;
   } else {
     el("adminPanelFeedback").textContent = `Granted ${TEAMS[team].label} past ${clueName} (step ${currentStep}).`;
   }
