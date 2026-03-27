@@ -53,6 +53,19 @@
     </div>
   </div>
 
+  <div id="victoryOverlay" class="overlay hidden">
+    <div class="gateCard victoryCard">
+      <button id="victoryCloseX" class="adminCloseX" aria-label="Close">×</button>
+      <div class="badge bigBadge">🏆 Victory!</div>
+      <h1 class="gateTitle" id="victoryTitle">You finished the hunt!</h1>
+      <p class="gateCopy" id="victoryPlacement">Your team came in first place.</p>
+      <div class="victoryRank" id="victoryRankWord">First place</div>
+      <div class="victoryMeta" id="victoryMeta">The leaderboard has been updated.</div>
+      <div class="spacer"></div>
+      <button class="primary full" id="victoryLeaderboardBtn">View leaderboard</button>
+    </div>
+  </div>
+
   <header class="topbar">
     <div class="topbarInner">
       <div class="brand"><button type="button" id="rabbitTrigger" class="rabbitBtn" aria-label="Admin access">🐰</button><span>Easter Chore Hunt</span></div>
@@ -79,6 +92,17 @@
           <div class="small">Hints used</div>
           <strong id="hintCount">0 / 3</strong>
           <div class="muted" id="hintStatus">Hint ready</div>
+        </div>
+      </div>
+      <div id="finalEggCard" class="finalEggCard hidden">
+        <div>
+          <div class="badge finalEggBadge" id="finalEggBadge">🏁 Final egg ready</div>
+          <h2 id="finalEggTitle">You made it to the last stop.</h2>
+          <p id="finalEggCopy">When your team has the final egg, tap the button below to lock in your placement.</p>
+        </div>
+        <div class="finalEggActions">
+          <button class="primary finalEggBtn" id="claimVictoryBtn">I found the final egg!</button>
+          <button class="finalEggBtn hidden" id="viewVictoryBtn">View victory page</button>
         </div>
       </div>
     </section>

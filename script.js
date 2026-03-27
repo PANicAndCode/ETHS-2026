@@ -62,6 +62,18 @@ function saveLocalBoard(){
   localStorage.setItem(leaderboardKey(), JSON.stringify(board));
 }
 
+function compareBoardRows(a, b){
+  if (!!a.finished !== !!b.finished) return a.finished ? -1 : 1;
+  if (a.finished && b.finished){
+    return (toMillis(a.lastUpdatedAt) - toMillis(b.lastUpdatedAt))
+      || (b.found - a.found)
+      || a.teamName.localeCompare(b.teamName);
+  }
+  return (b.found - a.found)
+    || (toMillis(a.lastUpdatedAt) - toMillis(b.lastUpdatedAt))
+    || a.teamName.localeCompare(b.teamName);
+}
+
 function localBoardRows(){
   const board = readJson(leaderboardKey(), {});
   return Object.entries(TEAMS).map(([key, t]) => ({
@@ -70,7 +82,7 @@ function localBoardRows(){
     found: board[key]?.found || 0,
     finished: board[key]?.finished || false,
     lastUpdatedAt: board[key]?.lastUpdatedAt || 0
-  })).sort((a, b) => (b.found - a.found) || (toMillis(a.lastUpdatedAt) - toMillis(b.lastUpdatedAt)));
+  })).sort(compareBoardRows);
 }
 
 function remoteBoardRows(){
@@ -80,11 +92,43 @@ function remoteBoardRows(){
     found: liveBoardCache[key]?.found || 0,
     finished: liveBoardCache[key]?.finished || false,
     lastUpdatedAt: liveBoardCache[key]?.last_updated_at || 0
-  })).sort((a, b) => (b.found - a.found) || (toMillis(a.lastUpdatedAt) - toMillis(b.lastUpdatedAt)));
+  })).sort(compareBoardRows);
 }
 
 function boardRows(){
   return supabaseReady ? remoteBoardRows() : localBoardRows();
+}
+
+function teamTotal(team = teamKey){
+  return TEAMS[team]?.sequence?.length || 0;
+}
+
+function isReadyForVictory(targetState, team = teamKey){
+  return !!targetState && !targetState.finished && targetState.progressIndex >= teamTotal(team);
+}
+
+function ordinalWord(place){
+  return ["zeroth", "first", "second", "third", "fourth", "fifth"][place] || `${place}th`;
+}
+
+function placementLabel(place){
+  return `${ordinalWord(place)} place`;
+}
+
+function trophyInfoForPlacement(place){
+  if (place === 1) return { icon: "🏆", className: "trophyBadge trophyGold", label: "Gold trophy" };
+  if (place === 2) return { icon: "🏆", className: "trophyBadge trophySilver", label: "Silver trophy" };
+  if (place === 3) return { icon: "🏆", className: "trophyBadge trophyBronze", label: "Bronze trophy" };
+  return null;
+}
+
+function finishedPlacementRows(){
+  return boardRows().filter(row => row.finished).sort((a, b) => (toMillis(a.lastUpdatedAt) - toMillis(b.lastUpdatedAt)) || a.teamName.localeCompare(b.teamName));
+}
+
+function finishPlacementForTeam(team = teamKey){
+  const idx = finishedPlacementRows().findIndex(row => row.key === team);
+  return idx >= 0 ? idx + 1 : null;
 }
 
 function setFeedback(msg){ if (el("feedbackBox")) el("feedbackBox").textContent = msg; }
@@ -96,6 +140,7 @@ function setScanStatus(status, msg){
     idle: "scanStatusIdle",
     checking: "scanStatusChecking",
     correct: "scanStatusSuccess",
+    "ready-final-egg": "scanStatusSuccess",
     wrong: "scanStatusError",
     "no-qr": "scanStatusWarn",
     "no-team": "scanStatusError",
@@ -452,9 +497,22 @@ function renderBoard(){
   if (!board) return;
   board.innerHTML = "";
   boardRows().forEach((row, i) => {
+    const place = i + 1;
+    const trophy = row.finished ? trophyInfoForPlacement(place) : null;
     const div = document.createElement("div");
     div.className = "leaderRow";
-    div.innerHTML = `<div><strong>${i + 1}. ${row.teamName}</strong><div class="muted">${row.finished ? "Finished" : "In progress"}</div></div><div><strong>${row.found}</strong><div class="small">clues found</div></div>`;
+    div.innerHTML = `
+      <div class="leaderMain">
+        ${trophy ? `<span class="${trophy.className}" aria-label="${trophy.label}">${trophy.icon}</span>` : ""}
+        <div class="leaderText">
+          <strong>${place}. ${row.teamName}</strong>
+          <div class="muted">${row.finished ? `${placementLabel(place)} • Finished` : (row.found >= teamTotal(row.key) ? "Final egg ready" : "In progress")}</div>
+        </div>
+      </div>
+      <div class="leaderRight">
+        <strong>${row.found}</strong>
+        <div class="small">clues found</div>
+      </div>`;
     board.appendChild(div);
   });
 }
@@ -474,6 +532,7 @@ async function renderAll(options = {}){
   renderChores();
   renderMap();
   renderHint();
+  renderFinalEggCard();
   renderBoard();
   if (shouldPersist) await persistAll();
 }
@@ -482,6 +541,9 @@ async function renderAll(options = {}){
 function applyProgressAdvance(team, targetState, scannedValue){
   const expected = TOKENS[team]?.[targetState.progressIndex];
   if (!expected){
+    if (isReadyForVictory(targetState, team)) {
+      return { status: "ready-final-egg", message: "You found every clue. Tap I found the final egg! to lock in your placement." };
+    }
     return { status: "finished", message: "This team has already finished every clue." };
   }
 
@@ -491,11 +553,14 @@ function applyProgressAdvance(team, targetState, scannedValue){
   targetState.completed.push(finishedStep);
   targetState.scannedTokens.push(scannedValue || expected);
   targetState.progressIndex += 1;
-  targetState.finished = targetState.progressIndex >= TEAMS[team].sequence.length || expected.includes("FINISH");
+  targetState.finished = false;
   targetState.lastUpdatedAt = Date.now();
 
-  const message = targetState.finished ? "That was the right QR code. You finished the hunt." : "That was the right QR code. Your next chore is unlocked.";
-  return { status: "correct", message };
+  if (isReadyForVictory(targetState, team)) {
+    return { status: "ready-final-egg", message: "That was the right QR code. You found the last clue. Tap I found the final egg! when your team gets there." };
+  }
+
+  return { status: "correct", message: "That was the right QR code. Your next chore is unlocked." };
 }
 
 async function unlockToken(token, options = {}){
@@ -508,9 +573,11 @@ async function unlockToken(token, options = {}){
 
   const expected = TOKENS[teamKey][state.progressIndex];
   if (!expected){
-    const message = "This team has already finished every clue.";
+    const message = isReadyForVictory(state, teamKey)
+      ? "You found every clue. Tap I found the final egg! to lock in your placement."
+      : "This team has already finished every clue.";
     if (!quiet) setFeedback(message);
-    return { status: "finished", message };
+    return { status: isReadyForVictory(state, teamKey) ? "ready-final-egg" : "finished", message };
   }
 
   if ((token || "").trim() !== expected){
@@ -521,11 +588,88 @@ async function unlockToken(token, options = {}){
 
   const result = applyProgressAdvance(teamKey, state, expected);
   await renderAll();
+  if (result.status === "ready-final-egg") setPage("choresPage");
 
   if (!quiet) setFeedback(result.message);
   return result;
 }
 
+
+function renderFinalEggCard(){
+  const card = el("finalEggCard");
+  const claimBtn = el("claimVictoryBtn");
+  const viewBtn = el("viewVictoryBtn");
+  const title = el("finalEggTitle");
+  const copy = el("finalEggCopy");
+  const badge = el("finalEggBadge");
+  if (!card || !claimBtn || !viewBtn || !title || !copy || !badge) return;
+
+  if (!teamKey || !state){
+    card.classList.add("hidden");
+    return;
+  }
+
+  if (isReadyForVictory(state, teamKey)){
+    card.classList.remove("hidden");
+    badge.textContent = "🏁 Final egg ready";
+    title.textContent = "You made it to the last stop.";
+    copy.textContent = "When your team has the final egg, tap the button below to lock in your placement.";
+    claimBtn.classList.remove("hidden");
+    viewBtn.classList.add("hidden");
+    return;
+  }
+
+  if (state.finished){
+    const place = finishPlacementForTeam(teamKey);
+    card.classList.remove("hidden");
+    badge.textContent = "🏆 Victory locked";
+    title.textContent = `Your team finished in ${placementLabel(place || 1)}.`;
+    copy.textContent = "Your placement is locked in. Open the victory page or check the leaderboard to see the standings.";
+    claimBtn.classList.add("hidden");
+    viewBtn.classList.remove("hidden");
+    return;
+  }
+
+  card.classList.add("hidden");
+}
+
+function hideVictoryOverlay(){
+  const overlay = el("victoryOverlay");
+  if (overlay) overlay.classList.add("hidden");
+}
+
+function showVictoryOverlay(){
+  if (!teamKey || !state || !state.finished) return;
+  const place = finishPlacementForTeam(teamKey) || 1;
+  if (el("victoryTitle")) el("victoryTitle").textContent = `${state.teamName} finished the hunt!`;
+  if (el("victoryPlacement")) el("victoryPlacement").textContent = `Your team came in ${placementLabel(place)}.`;
+  if (el("victoryRankWord")) el("victoryRankWord").textContent = placementLabel(place).replace(/^./, char => char.toUpperCase());
+  if (el("victoryMeta")) el("victoryMeta").textContent = place <= 3
+    ? `The leaderboard has been updated and your team earned the ${place === 1 ? "gold" : place === 2 ? "silver" : "bronze"} trophy.`
+    : "The leaderboard has been updated with your final placement.";
+  const overlay = el("victoryOverlay");
+  if (overlay) overlay.classList.remove("hidden");
+}
+
+async function claimVictory(){
+  if (!teamKey || !state) return;
+  if (state.finished){
+    showVictoryOverlay();
+    return;
+  }
+  if (!isReadyForVictory(state, teamKey)){
+    setFeedback("Finish the last clue before you claim the final egg.");
+    return;
+  }
+
+  state.finished = true;
+  state.lastUpdatedAt = Date.now();
+  await renderAll();
+  if (supabaseReady) await fetchLeaderboard();
+  renderFinalEggCard();
+  showVictoryOverlay();
+  setFeedback(`Victory locked in for ${state.teamName}.`);
+}
 
 function showPhotoPlaceholder(message){
   const placeholder = el("photoPlaceholder");
@@ -901,7 +1045,7 @@ async function adminSaveTeamName(){
 
   let targetState = await loadRemoteProgress(team) || loadLocalState(team);
   targetState.teamName = newName;
-  targetState.lastUpdatedAt = Date.now();
+  if (!targetState.finished) targetState.lastUpdatedAt = Date.now();
   liveProgressCache[team] = { ...targetState };
   localStorage.setItem(storageKey(team), JSON.stringify(targetState));
 
@@ -997,17 +1141,24 @@ async function adminGrantNext(){
   const team = el("adminTeamSelect").value;
   let targetState = await loadRemoteProgress(team) || loadLocalState(team);
 
-  const expected = TOKENS[team]?.[targetState.progressIndex];
-  if (!expected){
-    el("adminPanelFeedback").textContent = "That team has already finished the hunt.";
-    return;
+  let result = null;
+  let currentStep = targetState.progressIndex + 1;
+  let currentClueId = TEAMS[team].sequence[targetState.progressIndex];
+  let currentClue = currentClueId ? CLUES[currentClueId] : null;
+
+  if (isReadyForVictory(targetState, team)) {
+    targetState.finished = true;
+    targetState.lastUpdatedAt = Date.now();
+    result = { status: "finished", message: `${TEAMS[team].label} finished the hunt.` };
+  } else {
+    const expected = TOKENS[team]?.[targetState.progressIndex];
+    if (!expected){
+      el("adminPanelFeedback").textContent = "That team has already finished the hunt.";
+      return;
+    }
+    result = applyProgressAdvance(team, targetState, expected);
   }
 
-  const currentStep = targetState.progressIndex + 1;
-  const currentClueId = TEAMS[team].sequence[targetState.progressIndex];
-  const currentClue = CLUES[currentClueId];
-
-  const result = applyProgressAdvance(team, targetState, expected);
   liveProgressCache[team] = { ...targetState };
   localStorage.setItem(storageKey(team), JSON.stringify(targetState));
 
@@ -1054,15 +1205,21 @@ async function adminGrantNext(){
   if (teamKey === team){
     state = targetState;
     await renderAll({ persist: false });
+    if (state.finished) showVictoryOverlay();
   } else {
     renderBoard();
   }
 
   await syncAdminFields();
   const clueName = currentClue?.location || `Clue ${currentClueId}`;
-  el("adminPanelFeedback").textContent = result.status === "finished"
-    ? `${TEAMS[team].label} finished the hunt.`
-    : `Granted ${TEAMS[team].label} past ${clueName} (step ${currentStep}).`;
+  if (targetState.finished) {
+    const place = finishPlacementForTeam(team) || finishedPlacementRows().length;
+    el("adminPanelFeedback").textContent = `${TEAMS[team].label} finished the hunt in ${placementLabel(place)}.`;
+  } else if (result.status === "ready-final-egg") {
+    el("adminPanelFeedback").textContent = `Granted ${TEAMS[team].label} the final clue. They can now tap I found the final egg!`;
+  } else {
+    el("adminPanelFeedback").textContent = `Granted ${TEAMS[team].label} past ${clueName} (step ${currentStep}).`;
+  }
 }
 
 async function adminReloadTeam(){
@@ -1122,6 +1279,12 @@ function wireAdminEvents(){
   if (el("adminGrantNextBtn")) el("adminGrantNextBtn").addEventListener("click", adminGrantNext);
   if (el("adminResetTeamBtn")) el("adminResetTeamBtn").addEventListener("click", adminResetTeam);
   if (el("adminReloadTeamBtn")) el("adminReloadTeamBtn").addEventListener("click", adminReloadTeam);
+  if (el("victoryCloseX")) el("victoryCloseX").addEventListener("click", hideVictoryOverlay);
+  if (el("victoryLeaderboardBtn")) el("victoryLeaderboardBtn").addEventListener("click", () => {
+    hideVictoryOverlay();
+    setPage("mapPage");
+  });
+  if (el("victoryOverlay")) el("victoryOverlay").addEventListener("click", e => { if (e.target === el("victoryOverlay")) hideVictoryOverlay(); });
 }
 
 function wireScannerEvents(){
@@ -1150,6 +1313,9 @@ function wireScannerEvents(){
       el("manualCode").value = "";
     });
   }
+
+  if (el("claimVictoryBtn")) el("claimVictoryBtn").addEventListener("click", claimVictory);
+  if (el("viewVictoryBtn")) el("viewVictoryBtn").addEventListener("click", showVictoryOverlay);
 }
 
 document.querySelectorAll(".menuBtn").forEach(btn => btn.addEventListener("click", () => setPage(btn.dataset.page)));
@@ -1167,7 +1333,7 @@ if (el("startGameBtn")) {
     if (remote) loaded = remote;
     state = loaded;
     state.teamName = claimedName || enteredName || state.teamName || TEAMS[teamKey].label;
-    state.lastUpdatedAt = Date.now();
+    if (!state.lastUpdatedAt) state.lastUpdatedAt = Date.now();
     el("teamGate").classList.add("hidden");
     await renderAll();
   });
