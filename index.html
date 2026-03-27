@@ -113,16 +113,27 @@
       <div class="scanWrap">
         <div class="card panel scanCard">
           <h2>Check next egg</h2>
-          <div class="muted" id="scanMessage">Take a photo of the egg QR code or type the code manually.</div>
-          <label class="buttonLike primary full captureBtn" for="qrPhotoInput">Take or choose a photo</label>
-          <input id="qrPhotoInput" class="hiddenFileInput" type="file" accept="image/*" capture="environment">
+          <div class="muted" id="scanMessage">Take a picture of the egg QR code, then check it.</div>
+          <div class="cameraActions">
+            <button class="primary full" id="startCameraBtn" type="button">Open camera</button>
+            <button id="takePhotoBtn" type="button">Take picture</button>
+            <button id="retakePhotoBtn" type="button">Retake</button>
+          </div>
+          <div class="muted cameraNote" id="cameraNote">Best results: fill most of the frame with the QR code and avoid glare.</div>
           <div class="photoBox">
             <div id="qr-reader" class="qrReader photoReader">
-              <div class="photoPlaceholder">No photo selected yet.</div>
+              <video id="qrVideo" class="previewVideo" playsinline autoplay muted></video>
+              <canvas id="qrCanvas" class="previewCanvas hidden"></canvas>
+              <div class="photoPlaceholder" id="photoPlaceholder">Camera is off. Open the camera or choose a photo.</div>
             </div>
           </div>
-          <button id="clearPhotoBtn" type="button">Clear photo</button>
-          <div id="scanStatusBox" class="scanStatus scanStatusIdle">Waiting for a photo or code.</div>
+          <div class="cameraActions secondaryActions">
+            <label class="buttonLike full captureBtn" for="qrPhotoInput">Choose a photo instead</label>
+            <input id="qrPhotoInput" class="hiddenFileInput" type="file" accept="image/*" capture="environment">
+            <button id="checkPhotoBtn" type="button">Check picture</button>
+            <button id="clearPhotoBtn" type="button">Clear</button>
+          </div>
+          <div id="scanStatusBox" class="scanStatus scanStatusIdle">Waiting for a picture or code.</div>
           <input id="manualCode" placeholder="Paste or type QR code value">
           <button class="primary" id="unlockBtn">Check code</button>
         </div>

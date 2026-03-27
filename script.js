@@ -10,6 +10,8 @@ let supabaseClient = null;
 let liveBoardCache = {};
 let liveProgressCache = {};
 let fileQrScanner = null;
+let cameraStream = null;
+let capturedCanvas = null;
 
 function el(id){ return document.getElementById(id); }
 function storageKey(team){ return `${STORAGE_PREFIX}-${team}`; }
@@ -347,6 +349,13 @@ function setPage(pageId){
   const page = el(pageId);
   if (page) page.classList.add("activePage");
   document.querySelectorAll(".menuBtn").forEach(btn => btn.classList.toggle("active", btn.dataset.page === pageId));
+
+  if (pageId === "scanPage") {
+    const canvas = el("qrCanvas");
+    if (!capturedCanvas && (!canvas || canvas.classList.contains("hidden"))) startCamera();
+  } else {
+    stopCamera();
+  }
 }
 
 function renderGateTeams(selected){
@@ -503,23 +512,112 @@ async function unlockToken(token, options = {}){
   return { status: "correct", message };
 }
 
-function resetPhotoArea(){
-  const reader = el("qr-reader");
-  if (!reader) return;
-  const existingImg = reader.querySelector("img.previewImage");
-  if (existingImg && existingImg.src && existingImg.src.startsWith("blob:")) {
-    try { URL.revokeObjectURL(existingImg.src); } catch (error) {}
-  }
-  reader.innerHTML = '<div class="photoPlaceholder">No photo selected yet.</div>';
-  if (el("qrPhotoInput")) el("qrPhotoInput").value = "";
+
+function showPhotoPlaceholder(message){
+  const placeholder = el("photoPlaceholder");
+  if (!placeholder) return;
+  placeholder.textContent = message;
+  placeholder.classList.remove("hidden");
 }
 
+function hidePhotoPlaceholder(){
+  const placeholder = el("photoPlaceholder");
+  if (placeholder) placeholder.classList.add("hidden");
+}
+
+async function stopCamera(){
+  if (cameraStream){
+    cameraStream.getTracks().forEach(track => track.stop());
+    cameraStream = null;
+  }
+  const video = el("qrVideo");
+  if (video){
+    video.pause();
+    video.srcObject = null;
+    video.classList.add("hidden");
+  }
+}
+
+async function startCamera(){
+  const video = el("qrVideo");
+  const canvas = el("qrCanvas");
+  if (!video || !canvas) return;
+
+  setScanMessage("Opening camera...");
+  setScanStatus("checking", "Opening camera...");
+
+  try {
+    await stopCamera();
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
+    });
+    cameraStream = stream;
+    video.srcObject = stream;
+    video.classList.remove("hidden");
+    canvas.classList.add("hidden");
+    capturedCanvas = null;
+    hidePhotoPlaceholder();
+    await video.play();
+    setScanMessage("Take a picture of the QR code.");
+    setScanStatus("idle", "Camera ready. Take a picture.");
+  } catch (error){
+    console.error(error);
+    showPhotoPlaceholder("Could not open the camera. You can still choose a photo instead.");
+    setScanMessage("Could not open the camera. Choose a photo instead.");
+    setScanStatus("error", "Camera access failed. Choose a photo instead.");
+  }
+}
+
+function resetPhotoArea(options = {}){
+  const { keepStatus = false } = options;
+  const reader = el("qr-reader");
+  const video = el("qrVideo");
+  const canvas = el("qrCanvas");
+  if (reader){
+    const existingImg = reader.querySelector("img.previewImage");
+    if (existingImg && existingImg.src && existingImg.src.startsWith("blob:")) {
+      try { URL.revokeObjectURL(existingImg.src); } catch (error) {}
+      existingImg.remove();
+    }
+  }
+  if (video){
+    video.classList.add("hidden");
+    video.srcObject = null;
+  }
+  if (canvas){
+    const ctx = canvas.getContext("2d");
+    if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    canvas.classList.add("hidden");
+  }
+  capturedCanvas = null;
+  if (el("qrPhotoInput")) el("qrPhotoInput").value = "";
+  showPhotoPlaceholder("Camera is off. Open the camera or choose a photo.");
+  stopCamera();
+  if (!keepStatus){
+    setScanMessage("Take a picture of the egg QR code, then check it.");
+    setScanStatus("idle", "Waiting for a picture or code.");
+  }
+}
 
 function renderPhotoPreview(file){
   const reader = el("qr-reader");
+  const video = el("qrVideo");
+  const canvas = el("qrCanvas");
   if (!reader) return null;
+  if (video) video.classList.add("hidden");
+  if (canvas) canvas.classList.add("hidden");
+  hidePhotoPlaceholder();
   const objectUrl = URL.createObjectURL(file);
-  reader.innerHTML = "";
+  const oldImg = reader.querySelector("img.previewImage");
+  if (oldImg && oldImg.src && oldImg.src.startsWith("blob:")) {
+    try { URL.revokeObjectURL(oldImg.src); } catch (error) {}
+    oldImg.remove();
+  }
   const img = document.createElement("img");
   img.src = objectUrl;
   img.alt = "Selected QR code photo";
@@ -544,13 +642,22 @@ async function fileToLoadedImage(file){
   });
 }
 
-function canvasFromImage(img, maxDim = 1800){
+function canvasFromImage(img, maxDim = 2200){
   const scale = Math.min(1, maxDim / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round((img.naturalWidth || img.width) * scale));
   canvas.height = Math.max(1, Math.round((img.naturalHeight || img.height) * scale));
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+function cloneCanvas(sourceCanvas){
+  const canvas = document.createElement("canvas");
+  canvas.width = sourceCanvas.width;
+  canvas.height = sourceCanvas.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(sourceCanvas, 0, 0);
   return canvas;
 }
 
@@ -576,6 +683,22 @@ function scaledCanvas(sourceCanvas, scale){
   return canvas;
 }
 
+function thresholdCanvas(sourceCanvas, threshold = 140){
+  const canvas = cloneCanvas(sourceCanvas);
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4){
+    const gray = (0.299 * data[i]) + (0.587 * data[i + 1]) + (0.114 * data[i + 2]);
+    const value = gray > threshold ? 255 : 0;
+    data[i] = value;
+    data[i + 1] = value;
+    data[i + 2] = value;
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return canvas;
+}
+
 async function decodeWithBarcodeDetector(canvas){
   if (!("BarcodeDetector" in window)) return null;
   try {
@@ -590,7 +713,7 @@ async function decodeWithBarcodeDetector(canvas){
 
 function decodeWithJsQr(canvas){
   if (typeof jsQR === "undefined") return null;
-  const scales = [1, 0.85, 0.65, 1.25];
+  const scales = [1, 0.85, 0.65, 1.25, 1.5];
   for (const scale of scales){
     const working = scale === 1 ? canvas : scaledCanvas(canvas, scale);
     const ctx = working.getContext("2d", { willReadFrequently: true });
@@ -601,19 +724,31 @@ function decodeWithJsQr(canvas){
   return null;
 }
 
+async function decodeQrFromCanvas(sourceCanvas){
+  const orientations = [0, 90, 180, 270];
+  for (const degrees of orientations){
+    const oriented = degrees === 0 ? sourceCanvas : rotateCanvas(sourceCanvas, degrees);
+    const variants = [
+      oriented,
+      thresholdCanvas(oriented, 110),
+      thresholdCanvas(oriented, 140),
+      thresholdCanvas(oriented, 170)
+    ];
+    for (const variant of variants){
+      const detectorResult = await decodeWithBarcodeDetector(variant);
+      if (detectorResult) return detectorResult;
+      const jsqrResult = decodeWithJsQr(variant);
+      if (jsqrResult) return jsqrResult;
+    }
+  }
+  return null;
+}
+
 async function decodeQrFromFile(file){
   const img = await fileToLoadedImage(file);
   const baseCanvas = canvasFromImage(img);
-  const orientations = [0, 90, 180, 270];
-
-  for (const degrees of orientations){
-    const oriented = degrees === 0 ? baseCanvas : rotateCanvas(baseCanvas, degrees);
-    const detectorResult = await decodeWithBarcodeDetector(oriented);
-    if (detectorResult) return detectorResult;
-
-    const jsqrResult = decodeWithJsQr(oriented);
-    if (jsqrResult) return jsqrResult;
-  }
+  const decoded = await decodeQrFromCanvas(baseCanvas);
+  if (decoded) return decoded;
 
   if (typeof Html5Qrcode !== "undefined"){
     try {
@@ -627,13 +762,62 @@ async function decodeQrFromFile(file){
   return null;
 }
 
+function captureCurrentFrame(){
+  const video = el("qrVideo");
+  const canvas = el("qrCanvas");
+  if (!video || !canvas || !video.videoWidth || !video.videoHeight) return null;
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  canvas.classList.remove("hidden");
+  video.classList.add("hidden");
+  hidePhotoPlaceholder();
+  capturedCanvas = cloneCanvas(canvas);
+  return capturedCanvas;
+}
+
+async function analyzeCanvas(canvas){
+  setScanMessage("Checking picture...");
+  setScanStatus("checking", "Checking picture...");
+  try {
+    const decodedText = await decodeQrFromCanvas(canvas);
+    if (!decodedText){
+      setScanMessage("No QR code detected. Try again.");
+      setFeedback("No QR code detected. Try again.");
+      setScanStatus("no-qr", "No QR code detected. Try again.");
+      return;
+    }
+    const result = await unlockToken(decodedText, { quiet: true });
+    setScanMessage(result.message);
+    setFeedback(result.message);
+    setScanStatus(result.status, result.message);
+  } catch (error){
+    console.error(error);
+    setScanMessage("No QR code detected. Try again.");
+    setFeedback("No QR code detected. Try again.");
+    setScanStatus("no-qr", "No QR code detected. Try again.");
+  }
+}
+
+async function captureAndCheckPhoto(){
+  const frame = captureCurrentFrame();
+  if (!frame){
+    setScanMessage("Camera is not ready yet.");
+    setScanStatus("error", "Camera is not ready yet.");
+    return;
+  }
+  await stopCamera();
+  await analyzeCanvas(frame);
+}
+
 async function checkPhotoFile(file){
   if (!file) return;
-
+  await stopCamera();
   const previewUrl = renderPhotoPreview(file);
 
-  setScanMessage("Checking photo...");
-  setScanStatus("checking", "Checking photo...");
+  setScanMessage("Checking picture...");
+  setScanStatus("checking", "Checking picture...");
 
   try {
     const decodedText = await decodeQrFromFile(file);
@@ -658,7 +842,6 @@ async function checkPhotoFile(file){
     }
   }
 }
-
 function showAdminOverlay(){ const o = el("adminOverlay"); if (o) o.classList.remove("hidden"); }
 function hideAdminOverlay(){ const o = el("adminOverlay"); if (o) o.classList.add("hidden"); }
 function showAdminPanel(){ populateAdminTeams(); syncAdminFields(); const p = el("adminPanel"); if (p) p.classList.remove("hidden"); }
@@ -854,6 +1037,38 @@ function wireAdminEvents(){
 }
 
 function wireScannerEvents(){
+  if (el("startCameraBtn")) {
+    el("startCameraBtn").addEventListener("click", startCamera);
+  }
+
+  if (el("takePhotoBtn")) {
+    el("takePhotoBtn").addEventListener("click", captureAndCheckPhoto);
+  }
+
+  if (el("retakePhotoBtn")) {
+    el("retakePhotoBtn").addEventListener("click", async () => {
+      resetPhotoArea({ keepStatus: true });
+      await startCamera();
+    });
+  }
+
+  if (el("checkPhotoBtn")) {
+    el("checkPhotoBtn").addEventListener("click", async () => {
+      const canvas = capturedCanvas || el("qrCanvas");
+      if (canvas && !canvas.classList.contains("hidden")) {
+        await analyzeCanvas(capturedCanvas || canvas);
+        return;
+      }
+      const file = el("qrPhotoInput")?.files?.[0];
+      if (file) {
+        await checkPhotoFile(file);
+        return;
+      }
+      setScanMessage("Take or choose a picture first.");
+      setScanStatus("error", "Take or choose a picture first.");
+    });
+  }
+
   if (el("qrPhotoInput")) {
     el("qrPhotoInput").addEventListener("change", async event => {
       const file = event.target.files && event.target.files[0];
@@ -864,8 +1079,6 @@ function wireScannerEvents(){
   if (el("clearPhotoBtn")) {
     el("clearPhotoBtn").addEventListener("click", () => {
       resetPhotoArea();
-      setScanMessage("Take a photo of the egg QR code or type the code manually.");
-      setScanStatus("idle", "Waiting for a photo or code.");
     });
   }
 
@@ -914,6 +1127,12 @@ if (el("hintBtn")) {
     await renderAll();
   });
 }
+
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) stopCamera();
+});
+window.addEventListener("beforeunload", stopCamera);
 
 (async function boot(){
   await initSupabase();

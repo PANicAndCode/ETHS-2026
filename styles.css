@@ -69,11 +69,16 @@ input,select{border:1px solid #e4d5c4;width:100%;background:white}
 .scanWrap{max-width:980px;margin:0 auto}
 .scanCard{width:100%;max-width:none}
 .captureBtn{width:100%}
+.cameraActions{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:10px}
+.secondaryActions{grid-template-columns:1.2fr 1fr 1fr}
+.cameraNote{margin-top:-4px}
 .hiddenFileInput{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
 .photoBox{min-height:380px;background:#6a3d2b;border-radius:20px;display:grid;place-items:center;color:#ffe7c8;overflow:hidden;padding:10px}
 .photoReader{width:100%;min-height:360px;background:#fff;border-radius:18px;padding:10px;display:grid;place-items:center;overflow:hidden}
-#qr-reader img,#qr-reader canvas{max-width:100%!important;height:auto!important;border-radius:16px}
-.previewImage{display:block;width:100%;max-height:520px;object-fit:contain;background:#fff;border-radius:16px}
+#qr-reader img,#qr-reader canvas,#qr-reader video{max-width:100%!important;height:auto!important;border-radius:16px}
+.previewImage,.previewVideo,.previewCanvas{display:block;width:100%;max-height:520px;object-fit:contain;background:#fff;border-radius:16px}
+.previewVideo{background:#111;aspect-ratio:3/4}
+.previewCanvas{display:block}
 .photoPlaceholder{font-size:14px;color:var(--muted);padding:24px;text-align:center}
 .scanStatus{min-height:88px;border-radius:22px;padding:18px 20px;display:flex;align-items:center;justify-content:center;text-align:center;font-weight:800;font-size:1.2rem;line-height:1.3;border:2px solid transparent;width:100%}
 .scanStatusIdle{background:#f7f6f2;border-color:#e8dfd4;color:#6a5c4f}
@@ -95,6 +100,7 @@ input,select{border:1px solid #e4d5c4;width:100%;background:white}
 @media (max-width: 900px){
   h1{font-size:30px}
   .mainGrid{grid-template-columns:1fr}
+  .cameraActions,.secondaryActions{grid-template-columns:1fr}
   .photoBox{min-height:300px;padding:8px}
   .photoReader{min-height:280px}
   .scanStatus{font-size:1.05rem;min-height:80px;padding:16px}
