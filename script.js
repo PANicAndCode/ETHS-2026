@@ -478,6 +478,26 @@ async function renderAll(options = {}){
   if (shouldPersist) await persistAll();
 }
 
+
+function applyProgressAdvance(team, targetState, scannedValue){
+  const expected = TOKENS[team]?.[targetState.progressIndex];
+  if (!expected){
+    return { status: "finished", message: "This team has already finished every clue." };
+  }
+
+  const finishedStep = TEAMS[team].sequence[targetState.progressIndex];
+  targetState.completed = Array.isArray(targetState.completed) ? targetState.completed : [];
+  targetState.scannedTokens = Array.isArray(targetState.scannedTokens) ? targetState.scannedTokens : [];
+  targetState.completed.push(finishedStep);
+  targetState.scannedTokens.push(scannedValue || expected);
+  targetState.progressIndex += 1;
+  targetState.finished = targetState.progressIndex >= TEAMS[team].sequence.length || expected.includes("FINISH");
+  targetState.lastUpdatedAt = Date.now();
+
+  const message = targetState.finished ? "That was the right QR code. You finished the hunt." : "That was the right QR code. Your next chore is unlocked.";
+  return { status: "correct", message };
+}
+
 async function unlockToken(token, options = {}){
   const quiet = !!options.quiet;
   if (!teamKey || !state) {
@@ -499,17 +519,11 @@ async function unlockToken(token, options = {}){
     return { status: "wrong", message };
   }
 
-  const finishedStep = TEAMS[teamKey].sequence[state.progressIndex];
-  state.completed.push(finishedStep);
-  state.scannedTokens.push(expected);
-  state.progressIndex += 1;
-  state.finished = state.progressIndex >= TEAMS[teamKey].sequence.length || expected.includes("FINISH");
-  state.lastUpdatedAt = Date.now();
+  const result = applyProgressAdvance(teamKey, state, expected);
   await renderAll();
 
-  const message = state.finished ? "That was the right QR code. You finished the hunt." : "That was the right QR code. Your next chore is unlocked.";
-  if (!quiet) setFeedback(message);
-  return { status: "correct", message };
+  if (!quiet) setFeedback(result.message);
+  return result;
 }
 
 
@@ -978,6 +992,79 @@ async function adminResetTeam(){
   el("adminPanelFeedback").textContent = supabaseReady ? "Selected team reset everywhere." : "Selected team reset on this device only.";
 }
 
+
+async function adminGrantNext(){
+  const team = el("adminTeamSelect").value;
+  let targetState = await loadRemoteProgress(team) || loadLocalState(team);
+
+  const expected = TOKENS[team]?.[targetState.progressIndex];
+  if (!expected){
+    el("adminPanelFeedback").textContent = "That team has already finished the hunt.";
+    return;
+  }
+
+  const currentStep = targetState.progressIndex + 1;
+  const currentClueId = TEAMS[team].sequence[targetState.progressIndex];
+  const currentClue = CLUES[currentClueId];
+
+  const result = applyProgressAdvance(team, targetState, expected);
+  liveProgressCache[team] = { ...targetState };
+  localStorage.setItem(storageKey(team), JSON.stringify(targetState));
+
+  const localBoard = readJson(leaderboardKey(), {});
+  localBoard[team] = {
+    teamName: targetState.teamName,
+    found: targetState.completed.length,
+    finished: targetState.finished,
+    lastUpdatedAt: targetState.lastUpdatedAt
+  };
+  localStorage.setItem(leaderboardKey(), JSON.stringify(localBoard));
+
+  if (supabaseReady){
+    await supabaseClient.from("team_progress").upsert({
+      team_id: team,
+      team_name: targetState.teamName,
+      progress_index: targetState.progressIndex,
+      completed: targetState.completed,
+      scanned_tokens: targetState.scannedTokens,
+      used_hints: targetState.usedHints,
+      next_hint_at: targetState.nextHintAt,
+      finished: targetState.finished,
+      started_at: targetState.startedAt,
+      last_updated_at: targetState.lastUpdatedAt
+    }, { onConflict: "team_id" });
+
+    await supabaseClient.from("leaderboard").upsert({
+      team_id: team,
+      team_name: targetState.teamName,
+      found: targetState.completed.length,
+      finished: targetState.finished,
+      last_updated_at: targetState.lastUpdatedAt
+    }, { onConflict: "team_id" });
+
+    liveBoardCache[team] = {
+      team_id: team,
+      team_name: targetState.teamName,
+      found: targetState.completed.length,
+      finished: targetState.finished,
+      last_updated_at: targetState.lastUpdatedAt
+    };
+  }
+
+  if (teamKey === team){
+    state = targetState;
+    await renderAll({ persist: false });
+  } else {
+    renderBoard();
+  }
+
+  await syncAdminFields();
+  const clueName = currentClue?.location || `Clue ${currentClueId}`;
+  el("adminPanelFeedback").textContent = result.status === "finished"
+    ? `${TEAMS[team].label} finished the hunt.`
+    : `Granted ${TEAMS[team].label} past ${clueName} (step ${currentStep}).`;
+}
+
 async function adminReloadTeam(){
   const team = el("adminTeamSelect").value;
   if (!supabaseReady){
@@ -1032,6 +1119,7 @@ function wireAdminEvents(){
 
   if (el("adminTeamSelect")) el("adminTeamSelect").addEventListener("change", syncAdminFields);
   if (el("adminSaveNameBtn")) el("adminSaveNameBtn").addEventListener("click", adminSaveTeamName);
+  if (el("adminGrantNextBtn")) el("adminGrantNextBtn").addEventListener("click", adminGrantNext);
   if (el("adminResetTeamBtn")) el("adminResetTeamBtn").addEventListener("click", adminResetTeam);
   if (el("adminReloadTeamBtn")) el("adminReloadTeamBtn").addEventListener("click", adminReloadTeam);
 }
