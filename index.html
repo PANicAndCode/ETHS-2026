@@ -54,7 +54,7 @@
 
   <header class="topbar">
     <div class="topbarInner">
-      <div class="brand"><button id="rabbitTrigger" class="rabbitBtn" aria-label="Admin access">🐰</button><span>Easter Chore Hunt</span></div>
+      <div class="brand"><button type="button" id="rabbitTrigger" class="rabbitBtn" aria-label="Admin access">🐰</button><span>Easter Chore Hunt</span></div>
       <nav class="menu">
         <button class="menuBtn active" data-page="choresPage">Chores</button>
         <button class="menuBtn" data-page="scanPage">Scanner</button>
@@ -133,7 +133,7 @@
         </div>
         <div class="card panel">
           <h2>Leaderboard</h2>
-          <p id="leaderboardModeText">Trying to connect to Supabase…</p>
+          <div id="leaderboardModeText" class="leaderStatus" hidden></div>
           <div class="leader" id="leaderboard"></div>
         </div>
       </div>

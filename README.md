@@ -23,3 +23,10 @@ Notes:
 - player-facing team settings are completely removed
 - leaderboard and team progress still use Supabase if configured
 - local fallback still works if Supabase is not configured
+
+
+v2 updates:
+- scanner now prefers the rear-facing camera by default
+- scanner area is full-width and taller
+- success text above leaderboard removed
+- rabbit button admin trigger hardened for mobile tap and click

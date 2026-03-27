@@ -89,3 +89,57 @@ input,select{border:1px solid #e4d5c4;width:100%;background:white}
   .largeVideoBox{min-height:74vh}
   #qr-reader__scan_region{min-height:500px}
 }
+
+
+/* v2 scanner and layout adjustments */
+.scanWrap{
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.scanCard{
+  width: 100%;
+  max-width: none;
+}
+.largeVideoBox{
+  width: 100%;
+  min-height: 0;
+  padding: 10px;
+}
+#qr-reader{
+  width: 100% !important;
+}
+#qr-reader video{
+  width: 100% !important;
+  height: 68vh !important;
+  max-height: 78vh !important;
+  object-fit: cover !important;
+  border-radius: 18px;
+}
+#qr-reader__scan_region{
+  min-height: 68vh !important;
+}
+#qr-reader__dashboard{
+  padding-top: 12px !important;
+}
+.leaderStatus{
+  display:none;
+}
+#mapPage .mainGrid{
+  align-items: start;
+}
+.rabbitBtn{
+  position: relative;
+  z-index: 5;
+}
+@media (max-width: 900px){
+  .largeVideoBox{
+    padding: 8px;
+  }
+  #qr-reader video{
+    height: 62vh !important;
+    max-height: 72vh !important;
+  }
+  #qr-reader__scan_region{
+    min-height: 62vh !important;
+  }
+}

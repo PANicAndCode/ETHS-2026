@@ -69,19 +69,22 @@ function fmtCountdown(ms){
 async function initSupabase(){
   try{
     if (!window.SUPABASE_CONFIG || !window.SUPABASE_CONFIG.url || !window.SUPABASE_CONFIG.anonKey || window.SUPABASE_CONFIG.url.startsWith("PASTE_")){
-      el("leaderboardModeText").textContent = "Supabase is not configured yet. Using local device leaderboard only.";
+      el("leaderboardModeText").textContent = "Using local device leaderboard only.";
+      el("leaderboardModeText").hidden = false;
       renderBoard();
       return;
     }
     supabaseClient = window.supabase.createClient(window.SUPABASE_CONFIG.url, window.SUPABASE_CONFIG.anonKey);
     supabaseReady = true;
-    el("leaderboardModeText").textContent = "Live shared leaderboard and team progress are connected through Supabase.";
+    el("leaderboardModeText").textContent = "";
+    el("leaderboardModeText").hidden = true;
     await fetchLeaderboard();
     subscribeLeaderboard();
   } catch (error){
     console.error(error);
     supabaseReady = false;
-    el("leaderboardModeText").textContent = "Supabase could not connect. Using local device leaderboard only.";
+    el("leaderboardModeText").textContent = "Using local device leaderboard only.";
+    el("leaderboardModeText").hidden = false;
     renderBoard();
   }
 }
@@ -92,7 +95,8 @@ async function fetchLeaderboard(){
   if (error){
     console.error(error);
     supabaseReady = false;
-    el("leaderboardModeText").textContent = "Supabase leaderboard query failed. Using local device leaderboard only.";
+    el("leaderboardModeText").textContent = "Using local device leaderboard only.";
+    el("leaderboardModeText").hidden = false;
     renderBoard();
     return;
   }
@@ -324,9 +328,12 @@ async function initScanner(){
       "qr-reader",
       {
         fps: 10,
-        qrbox: { width: 320, height: 320 },
+        qrbox: { width: 300, height: 300 },
         rememberLastUsedCamera: true,
-        supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA, Html5QrcodeScanType.SCAN_TYPE_FILE]
+        supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA, Html5QrcodeScanType.SCAN_TYPE_FILE],
+        videoConstraints: {
+          facingMode: { ideal: "environment" }
+        }
       },
       false
     );
@@ -347,10 +354,16 @@ async function initScanner(){
 }
 
 // Admin
-function showAdminOverlay(){ el("adminOverlay").classList.remove("hidden"); }
-function hideAdminOverlay(){ el("adminOverlay").classList.add("hidden"); }
-function showAdminPanel(){ populateAdminTeams(); syncAdminFields(); el("adminPanel").classList.remove("hidden"); }
-function hideAdminPanel(){ el("adminPanel").classList.add("hidden"); }
+function showAdminOverlay(){ const o = el("adminOverlay"); if (o) o.classList.remove("hidden"); }
+function hideAdminOverlay(){ const o = el("adminOverlay"); if (o) o.classList.add("hidden"); }
+function showAdminPanel(){ populateAdminTeams(); syncAdminFields(); const p = el("adminPanel"); if (p) p.classList.remove("hidden"); }
+function hideAdminPanel(){ const p = el("adminPanel"); if (p) p.classList.add("hidden"); }
+function openAdminPrompt(){
+  hideAdminPanel();
+  if (el("adminPasscode")) el("adminPasscode").value = "";
+  if (el("adminFeedback")) el("adminFeedback").textContent = "Admin tools are hidden from players.";
+  showAdminOverlay();
+}
 
 function populateAdminTeams(){
   const select = el("adminTeamSelect");
@@ -429,31 +442,41 @@ async function adminReloadTeam(){
   el("adminPanelFeedback").textContent = "Selected team reloaded from shared progress.";
 }
 function wireAdminEvents(){
-  el("rabbitTrigger").addEventListener("click", ev => {
-    ev.preventDefault();
-    ev.stopPropagation();
-    el("adminPasscode").value = "";
-    el("adminFeedback").textContent = "Admin tools are hidden from players.";
-    showAdminOverlay();
-  });
-  el("adminCloseX").addEventListener("click", hideAdminOverlay);
-  el("adminPanelCloseX").addEventListener("click", hideAdminPanel);
-  el("adminUnlockBtn").addEventListener("click", () => {
-    const pass = el("adminPasscode").value || "";
+  const rabbit = el("rabbitTrigger");
+  if (rabbit){
+    rabbit.onclick = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      openAdminPrompt();
+    };
+    rabbit.addEventListener("touchend", ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      openAdminPrompt();
+    }, { passive: false });
+  }
+
+  if (el("adminCloseX")) el("adminCloseX").addEventListener("click", hideAdminOverlay);
+  if (el("adminPanelCloseX")) el("adminPanelCloseX").addEventListener("click", hideAdminPanel);
+
+  if (el("adminUnlockBtn")) el("adminUnlockBtn").addEventListener("click", () => {
+    const pass = (el("adminPasscode")?.value || "").trim();
     if (pass === ADMIN_PASSCODE){
       hideAdminOverlay();
       showAdminPanel();
     } else {
-      el("adminPasscode").value = "";
+      if (el("adminPasscode")) el("adminPasscode").value = "";
       hideAdminOverlay();
     }
   });
-  el("adminOverlay").addEventListener("click", e => { if (e.target === el("adminOverlay")) hideAdminOverlay(); });
-  el("adminPanel").addEventListener("click", e => { if (e.target === el("adminPanel")) hideAdminPanel(); });
-  el("adminTeamSelect").addEventListener("change", syncAdminFields);
-  el("adminSaveNameBtn").addEventListener("click", adminSaveTeamName);
-  el("adminResetTeamBtn").addEventListener("click", adminResetTeam);
-  el("adminReloadTeamBtn").addEventListener("click", adminReloadTeam);
+
+  if (el("adminOverlay")) el("adminOverlay").addEventListener("click", e => { if (e.target === el("adminOverlay")) hideAdminOverlay(); });
+  if (el("adminPanel")) el("adminPanel").addEventListener("click", e => { if (e.target === el("adminPanel")) hideAdminPanel(); });
+
+  if (el("adminTeamSelect")) el("adminTeamSelect").addEventListener("change", syncAdminFields);
+  if (el("adminSaveNameBtn")) el("adminSaveNameBtn").addEventListener("click", adminSaveTeamName);
+  if (el("adminResetTeamBtn")) el("adminResetTeamBtn").addEventListener("click", adminResetTeam);
+  if (el("adminReloadTeamBtn")) el("adminReloadTeamBtn").addEventListener("click", adminReloadTeam);
 }
 
 document.querySelectorAll(".menuBtn").forEach(btn => btn.addEventListener("click", () => setPage(btn.dataset.page)));
