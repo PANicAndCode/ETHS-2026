@@ -447,3 +447,10 @@ setInterval(() => {
     renderHint();
   }
 }, 1000);
+
+window.addEventListener("click", (e) => {
+  const overlay = getEl("adminOverlay");
+  if (overlay && !overlay.classList.contains("hidden") && e.target === overlay){
+    hideAdminOverlay();
+  }
+});

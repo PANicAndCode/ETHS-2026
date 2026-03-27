@@ -44,3 +44,12 @@ Rabbit admin access version:
 - passcode: bunnyboss
 - any other passcode closes the prompt
 - there is an X button to close the prompt
+
+
+Layout/scanner/admin fixes:
+- map and leaderboard are now on the same page
+- removed the 'How the map works' section
+- scanner is now on its own page
+- scanner area is much larger on mobile
+- rabbit click opens admin passcode prompt directly
+- clicking outside the admin prompt or the X closes it
