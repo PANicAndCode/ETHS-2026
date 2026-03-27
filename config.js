@@ -10,7 +10,7 @@ const CLUES = {
   },
   "2": {
     "title": "Help Ma water the flowers.",
-    "location": "By the hose",
+    "location": "Hose",
     "hint": "Check under the watering can by the hose.",
     "zone": {
       "x": 45,
@@ -19,9 +19,9 @@ const CLUES = {
   },
   "3": {
     "title": "Help Ma entertain Chris.",
-    "location": "Playset / Christopher challenge",
+    "location": "Christopher Fight",
     "hint": "Go grab a sword from the playset and fight Christopher.",
-    "subtitle": "Grab something from the playset. Spare Christopher to three hits to get the next clue.",
+    "subtitle": "Grab something from the playset.",
     "zone": {
       "x": 49,
       "y": 47
@@ -31,6 +31,7 @@ const CLUES = {
     "title": "Help Ma fix the tv channels.",
     "location": "Satellite tower",
     "hint": "Go to the garage and find a satellite tower.",
+    "subtitle": "Check the tower.",
     "zone": {
       "x": 40,
       "y": 39
@@ -40,7 +41,7 @@ const CLUES = {
     "title": "Get dressed for Easter!",
     "location": "Garage dresser",
     "hint": "Go to the garage and check the dresser.",
-    "subtitle": "There are Easter Bunny ears in the dresser. Make sure to wear them.",
+    "subtitle": "There might be something in the garage.",
     "zone": {
       "x": 37,
       "y": 42
@@ -48,7 +49,7 @@ const CLUES = {
   },
   "6": {
     "title": "Get the heavy duty sled to prepare for snow.",
-    "location": "By the toboggan",
+    "location": "Old Toboggan",
     "hint": "Go to the old chicken house down the hill from the garden and look around for a toboggan.",
     "zone": {
       "x": 5,
@@ -75,7 +76,7 @@ const CLUES = {
   },
   "9": {
     "title": "Help Ma fix her tweety friend camera.",
-    "location": "Bird feeder with camera",
+    "location": "Bird feeder",
     "hint": "Go to the bird feeders and open the one with a camera.",
     "zone": {
       "x": 45,
@@ -84,7 +85,7 @@ const CLUES = {
   },
   "10": {
     "title": "Help Ma pick some apples.",
-    "location": "Apple orchard",
+    "location": "Orchard",
     "hint": "Go look through the orchard.",
     "zone": {
       "x": 38,
@@ -92,8 +93,8 @@ const CLUES = {
     }
   },
   "11": {
-    "title": "FINAL EGG: Find the last egg!",
-    "location": "Pond / dock",
+    "title": "FINAL EGG: Go fix the dock!",
+    "location": "Dock",
     "hint": "Go to the pond and look around the dock for the final egg.",
     "zone": {
       "x": 74,
