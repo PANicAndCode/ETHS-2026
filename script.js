@@ -506,25 +506,143 @@ async function unlockToken(token, options = {}){
 function resetPhotoArea(){
   const reader = el("qr-reader");
   if (!reader) return;
+  const existingImg = reader.querySelector("img.previewImage");
+  if (existingImg && existingImg.src && existingImg.src.startsWith("blob:")) {
+    try { URL.revokeObjectURL(existingImg.src); } catch (error) {}
+  }
   reader.innerHTML = '<div class="photoPlaceholder">No photo selected yet.</div>';
   if (el("qrPhotoInput")) el("qrPhotoInput").value = "";
 }
 
+
+function renderPhotoPreview(file){
+  const reader = el("qr-reader");
+  if (!reader) return null;
+  const objectUrl = URL.createObjectURL(file);
+  reader.innerHTML = "";
+  const img = document.createElement("img");
+  img.src = objectUrl;
+  img.alt = "Selected QR code photo";
+  img.className = "previewImage";
+  reader.appendChild(img);
+  return objectUrl;
+}
+
+async function fileToLoadedImage(file){
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not read image file."));
+    };
+    img.src = objectUrl;
+  });
+}
+
+function canvasFromImage(img, maxDim = 1800){
+  const scale = Math.min(1, maxDim / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round((img.naturalWidth || img.width) * scale));
+  canvas.height = Math.max(1, Math.round((img.naturalHeight || img.height) * scale));
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+function rotateCanvas(sourceCanvas, degrees){
+  const radians = degrees * Math.PI / 180;
+  const swap = Math.abs(degrees) % 180 === 90;
+  const canvas = document.createElement("canvas");
+  canvas.width = swap ? sourceCanvas.height : sourceCanvas.width;
+  canvas.height = swap ? sourceCanvas.width : sourceCanvas.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate(radians);
+  ctx.drawImage(sourceCanvas, -sourceCanvas.width / 2, -sourceCanvas.height / 2);
+  return canvas;
+}
+
+function scaledCanvas(sourceCanvas, scale){
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(sourceCanvas.width * scale));
+  canvas.height = Math.max(1, Math.round(sourceCanvas.height * scale));
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(sourceCanvas, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+async function decodeWithBarcodeDetector(canvas){
+  if (!("BarcodeDetector" in window)) return null;
+  try {
+    const detector = new BarcodeDetector({ formats: ["qr_code"] });
+    const results = await detector.detect(canvas);
+    if (results && results[0] && results[0].rawValue) return results[0].rawValue;
+  } catch (error) {
+    console.warn("BarcodeDetector failed", error);
+  }
+  return null;
+}
+
+function decodeWithJsQr(canvas){
+  if (typeof jsQR === "undefined") return null;
+  const scales = [1, 0.85, 0.65, 1.25];
+  for (const scale of scales){
+    const working = scale === 1 ? canvas : scaledCanvas(canvas, scale);
+    const ctx = working.getContext("2d", { willReadFrequently: true });
+    const imageData = ctx.getImageData(0, 0, working.width, working.height);
+    const result = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
+    if (result && result.data) return result.data;
+  }
+  return null;
+}
+
+async function decodeQrFromFile(file){
+  const img = await fileToLoadedImage(file);
+  const baseCanvas = canvasFromImage(img);
+  const orientations = [0, 90, 180, 270];
+
+  for (const degrees of orientations){
+    const oriented = degrees === 0 ? baseCanvas : rotateCanvas(baseCanvas, degrees);
+    const detectorResult = await decodeWithBarcodeDetector(oriented);
+    if (detectorResult) return detectorResult;
+
+    const jsqrResult = decodeWithJsQr(oriented);
+    if (jsqrResult) return jsqrResult;
+  }
+
+  if (typeof Html5Qrcode !== "undefined"){
+    try {
+      if (!fileQrScanner) fileQrScanner = new Html5Qrcode("qr-reader");
+      return await fileQrScanner.scanFile(file, false);
+    } catch (error) {
+      console.warn("Html5Qrcode fallback failed", error);
+    }
+  }
+
+  return null;
+}
+
 async function checkPhotoFile(file){
   if (!file) return;
-  if (typeof Html5Qrcode === "undefined"){
-    const message = "QR checker library did not load. Use manual code entry below.";
-    setScanMessage(message);
-    setFeedback(message);
-    setScanStatus("error", message);
-    return;
-  }
+
+  const previewUrl = renderPhotoPreview(file);
 
   setScanMessage("Checking photo...");
   setScanStatus("checking", "Checking photo...");
+
   try {
-    if (!fileQrScanner) fileQrScanner = new Html5Qrcode("qr-reader");
-    const decodedText = await fileQrScanner.scanFile(file, true);
+    const decodedText = await decodeQrFromFile(file);
+    if (!decodedText){
+      setScanMessage("No QR code detected. Try again.");
+      setFeedback("No QR code detected. Try again.");
+      setScanStatus("no-qr", "No QR code detected. Try again.");
+      return;
+    }
     const result = await unlockToken(decodedText, { quiet: true });
     setScanMessage(result.message);
     setFeedback(result.message);
@@ -534,6 +652,10 @@ async function checkPhotoFile(file){
     setScanMessage("No QR code detected. Try again.");
     setFeedback("No QR code detected. Try again.");
     setScanStatus("no-qr", "No QR code detected. Try again.");
+  } finally {
+    if (previewUrl && el("qrPhotoInput")?.value === "") {
+      URL.revokeObjectURL(previewUrl);
+    }
   }
 }
 
