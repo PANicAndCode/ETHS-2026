@@ -3,7 +3,6 @@ const CLUES = {
     "title": "Help Ma in the place where dinner begins before it reaches the pan.",
     "location": "Garden",
     "hint": "Check the garden.",
-    "subtitle": "They raccoons, hate them.",
     "zone": {
       "x": 24,
       "y": 57
@@ -13,6 +12,7 @@ const CLUES = {
     "title": "Help Ma bring a drink to her beautiful addiction.",
     "location": "Hose",
     "hint": "Check under the watering can by the hose.",
+    "subtitle": "The raccoons, hate them.",
     "zone": {
       "x": 45,
       "y": 60
