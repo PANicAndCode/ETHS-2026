@@ -1,15 +1,16 @@
 const CLUES = {
   "1": {
-    "title": "Help Ma plant some onions.",
+    "title": "Help Ma in the place where dinner begins before it reaches the pan.",
     "location": "Garden",
     "hint": "Check the garden.",
+    "subtitle": "They raccoons, hate them.",
     "zone": {
       "x": 24,
       "y": 57
     }
   },
   "2": {
-    "title": "Help Ma water the flowers.",
+    "title": "Help Ma bring a drink to her beautiful addiction.",
     "location": "Hose",
     "hint": "Check under the watering can by the hose.",
     "zone": {
@@ -21,7 +22,7 @@ const CLUES = {
     "title": "Help Ma entertain Chris.",
     "location": "Christopher Fight",
     "hint": "Go grab a sword from the playset and fight Christopher.",
-    "subtitle": "Grab something from the playset.",
+    "subtitle": "You'll need something from the wooden castle.",
     "zone": {
       "x": 49,
       "y": 47
@@ -41,7 +42,7 @@ const CLUES = {
     "title": "Get dressed for Easter!",
     "location": "Garage dresser",
     "hint": "Go to the garage and check the dresser.",
-    "subtitle": "There might be something in the garage.",
+    "subtitle": "There might be something in the smallest place of evidence that Ma may be a bit of a hoarder.",
     "zone": {
       "x": 37,
       "y": 42
@@ -66,16 +67,17 @@ const CLUES = {
     }
   },
   "8": {
-    "title": "Go feed the barn kitties.",
+    "title": "Go feed the cute inconveniences in the place where we wanted them to stay.",
     "location": "Barn",
     "hint": "Go inside the old barn and look through the missing board.",
+    "subtitle": "Not under the deck.",
     "zone": {
       "x": 65,
       "y": 46
     }
   },
   "9": {
-    "title": "Help Ma fix her tweety friend camera.",
+    "title": "Help Ma fix her spy camera.",
     "location": "Bird feeder",
     "hint": "Go to the bird feeders and open the one with a camera.",
     "zone": {
@@ -84,7 +86,7 @@ const CLUES = {
     }
   },
   "10": {
-    "title": "Help Ma pick some apples.",
+    "title": "Help Ma get ingredients for dessert salad, and I'm not talking snickers.",
     "location": "Orchard",
     "hint": "Go look through the orchard.",
     "zone": {
@@ -93,7 +95,7 @@ const CLUES = {
     }
   },
   "11": {
-    "title": "FINAL EGG: Go fix the dock!",
+    "title": "FINAL EGG: Go fix the walkway that reaches out to the water!",
     "location": "Dock",
     "hint": "Go to the pond and look around the dock for the final egg.",
     "zone": {
